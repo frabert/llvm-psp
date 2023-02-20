@@ -115,9 +115,6 @@ class MipsSubtarget : public MipsGenSubtargetInfo {
   // IsPTR64bit - Pointers are 64 bit wide
   bool IsPTR64bit;
 
-  // HasVFPU - Processor has a vector floating point unit.
-  bool HasVFPU;
-
   // CPU supports cnMIPS (Cavium Networks Octeon CPU).
   bool HasCnMips;
 
@@ -198,6 +195,9 @@ class MipsSubtarget : public MipsGenSubtargetInfo {
   // HasGINV -- supports R6 Global INValidate ASE
   bool HasGINV;
 
+  // HasAllegrex -- supports Allegrex instructions
+  bool HasAllegrex = false;
+
   // Use hazard variants of the jump register instructions for indirect
   // function calls and jump tables.
   bool UseIndirectJumpsHazard;
@@ -246,6 +246,7 @@ public:
   bool isABI_N64() const;
   bool isABI_N32() const;
   bool isABI_O32() const;
+  bool isABI_Allegrex() const;
   const MipsABIInfo &getABI() const;
   bool isABI_FPXX() const { return isABI_O32() && IsFPXX; }
 
@@ -317,7 +318,6 @@ public:
   bool isSingleFloat() const { return IsSingleFloat; }
   bool isTargetCOFF() const { return TargetTriple.isOSBinFormatCOFF(); }
   bool isTargetELF() const { return TargetTriple.isOSBinFormatELF(); }
-  bool hasVFPU() const { return HasVFPU; }
   bool inMips16Mode() const { return InMips16Mode; }
   bool inMips16ModeDefault() const {
     return InMips16Mode;
@@ -344,6 +344,7 @@ public:
   bool hasCRC() const { return HasCRC; }
   bool hasVirt() const { return HasVirt; }
   bool hasGINV() const { return HasGINV; }
+  bool hasAllegrex() const { return HasAllegrex; }
   bool useIndirectJumpsHazard() const {
     return UseIndirectJumpsHazard && hasMips32r2();
   }

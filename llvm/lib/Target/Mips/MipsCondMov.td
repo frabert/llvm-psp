@@ -105,7 +105,7 @@ multiclass MovnPats<RegisterClass CRC, RegisterClass DRC, Instruction MOVNInst,
 // Instantiation of instructions.
 let AdditionalPredicates = [NotInMicroMips] in {
   def MOVZ_I_I : MMRel, CMov_I_I_FT<"movz", GPR32Opnd, GPR32Opnd, II_MOVZ>,
-                 ADD_FM<0, 0xa>, INSN_MIPS4_32_NOT_32R6_64R6;
+                 ADD_FM<0, 0xa>, INSN_MIPS4_32_NOT_32R6_64R6, INSN_ALLEGREX;
 
   let isCodeGenOnly = 1 in {
     def MOVZ_I_I64   : CMov_I_I_FT<"movz", GPR32Opnd, GPR64Opnd, II_MOVZ>,
@@ -117,7 +117,7 @@ let AdditionalPredicates = [NotInMicroMips] in {
   }
 
   def MOVN_I_I     : MMRel, CMov_I_I_FT<"movn", GPR32Opnd, GPR32Opnd, II_MOVN>,
-                     ADD_FM<0, 0xb>, INSN_MIPS4_32_NOT_32R6_64R6;
+                     ADD_FM<0, 0xb>, INSN_MIPS4_32_NOT_32R6_64R6, INSN_ALLEGREX;
 
   let isCodeGenOnly = 1 in {
     def MOVN_I_I64   : CMov_I_I_FT<"movn", GPR32Opnd, GPR64Opnd, II_MOVN>,

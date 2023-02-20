@@ -1781,4 +1781,44 @@ def int_mips_xor_v : ClangBuiltin<"__builtin_msa_xor_v">,
 
 def int_mips_xori_b : ClangBuiltin<"__builtin_msa_xori_b">,
   Intrinsic<[llvm_v16i8_ty], [llvm_v16i8_ty, llvm_i32_ty], [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+
+//===----------------------------------------------------------------------===//
+// MIPS Allegrex
+
+def int_mips_allegrex_bitrev : ClangBuiltin<"__builtin_allegrex_bitrev">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_wsbh : ClangBuiltin<"__builtin_allegrex_wsbh">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_wsbw : ClangBuiltin<"__builtin_allegrex_wsbw">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_clz : ClangBuiltin<"__builtin_allegrex_clz">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_clo : ClangBuiltin<"__builtin_allegrex_clo">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_rotr : ClangBuiltin<"__builtin_allegrex_rotr">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_rotl : ClangBuiltin<"__builtin_allegrex_rotl">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_seb : ClangBuiltin<"__builtin_allegrex_seb">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_seh : ClangBuiltin<"__builtin_allegrex_seh">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_min : ClangBuiltin<"__builtin_allegrex_min">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_max : ClangBuiltin<"__builtin_allegrex_max">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_sync : ClangBuiltin<"__builtin_allegrex_sync">,
+  Intrinsic<[], [], []>;
+def int_mips_allegrex_cache : ClangBuiltin<"__builtin_allegrex_cache">,
+  Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], []>;
+def int_mips_allegrex_sqrt_s : ClangBuiltin<"__builtin_allegrex_sqrt_s">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_ceil_w_s : ClangBuiltin<"__builtin_allegrex_ceil_w_s">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_floor_w_s : ClangBuiltin<"__builtin_allegrex_floor_w_s">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_round_w_s : ClangBuiltin<"__builtin_allegrex_round_w_s">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_trunc_w_s : ClangBuiltin<"__builtin_allegrex_trunc_w_s">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
 }

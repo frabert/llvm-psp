@@ -19,6 +19,23 @@ def sub_dsp20    : SubRegIndex<1, 20>;
 def sub_dsp21    : SubRegIndex<1, 21>;
 def sub_dsp22    : SubRegIndex<1, 22>;
 def sub_dsp23    : SubRegIndex<1, 23>;
+
+def sub_vfpus_1 : SubRegIndex<32, 0>;
+def sub_vfpus_2 : SubRegIndex<32, 32>;
+def sub_vfpus_3 : SubRegIndex<32, 64>;
+def sub_vfpus_4 : SubRegIndex<32, 96>;
+
+def sub_vfpup_1 : SubRegIndex<64, -1>;
+def sub_vfpup_2 : SubRegIndex<64, -1>;
+
+def sub_vfput_1 : SubRegIndex<96, -1>;
+def sub_vfput_2 : SubRegIndex<96, -1>;
+def sub_vfput_3 : SubRegIndex<96, -1>;
+
+def sub_vfpuq_1 : SubRegIndex<128, -1>;
+def sub_vfpuq_2 : SubRegIndex<128, -1>;
+def sub_vfpuq_3 : SubRegIndex<128, -1>;
+def sub_vfpuq_4 : SubRegIndex<128, -1>;
 }
 
 class Unallocatable {
@@ -77,6 +94,9 @@ class ACCReg<bits<16> Enc, string n, list<Register> subregs>
 
 // Mips Hardware Registers
 class HWR<bits<16> Enc, string n> : MipsReg<Enc, n>;
+
+// Allegrex VFPU Registers
+class VFPR<bits<16> Enc, string n> : MipsReg<Enc, n>;
 
 //===----------------------------------------------------------------------===//
 //  Registers
@@ -275,6 +295,8 @@ let Namespace = "Mips" in {
   def P2 : MipsReg<2, "p2">;
 
 }
+
+include "MipsAllegrexRegisterInfo.td"
 
 //===----------------------------------------------------------------------===//
 // Register Classes

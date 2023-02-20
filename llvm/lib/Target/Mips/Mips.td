@@ -78,8 +78,6 @@ def FeatureSoftFloat   : SubtargetFeature<"soft-float", "IsSoftFloat", "true",
 def FeatureNoOddSPReg  : SubtargetFeature<"nooddspreg", "UseOddSPReg", "false",
                               "Disable odd numbered single-precision "
                               "registers">;
-def FeatureVFPU        : SubtargetFeature<"vfpu", "HasVFPU",
-                                "true", "Enable vector FPU instructions">;
 def FeatureMips1       : SubtargetFeature<"mips1", "MipsArchVersion", "Mips1",
                                 "Mips I ISA Support [highly experimental]">;
 def FeatureMips2       : SubtargetFeature<"mips2", "MipsArchVersion", "Mips2",
@@ -216,6 +214,9 @@ def FeatureUseCompactBranches
     : SubtargetFeature<"use-compact-branches", "UseCompactBranches", "true",
                        "Use compact branch instructions for MIPS32R6/MIPS64R6">;
 
+def FeatureAllegrex : SubtargetFeature<"allegrex", "HasAllegrex", "true",
+                                                      "Allegrex support">;
+
 //===----------------------------------------------------------------------===//
 // Mips Instruction Predicate Definitions.
 //===----------------------------------------------------------------------===//
@@ -295,6 +296,8 @@ def : Proc<"mips64r5", [FeatureMips64r5]>;
 def : Proc<"mips64r6", [FeatureMips64r6]>;
 def : Proc<"octeon", [FeatureMips64r2, FeatureCnMips]>;
 def : Proc<"octeon+", [FeatureMips64r2, FeatureCnMips, FeatureCnMipsP]>;
+def : Proc<"allegrex", [FeatureMips2, FeatureMips3_32,
+                        FeatureMips3_32r2, FeatureAllegrex]>;
 def : ProcessorModel<"p5600", MipsP5600Model, [ImplP5600]>;
 def : ProcessorModel<"i6400", MipsI6400Model, [ImplI6400]>;
 def : ProcessorModel<"i6500", MipsI6400Model, [ImplI6500]>;

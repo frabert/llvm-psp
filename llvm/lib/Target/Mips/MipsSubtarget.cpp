@@ -85,7 +85,7 @@ MipsSubtarget::MipsSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
       MipsArchVersion(MipsDefault), IsLittle(little), IsSoftFloat(false),
       IsSingleFloat(false), IsFPXX(false), NoABICalls(false), Abs2008(false),
       IsFP64bit(false), UseOddSPReg(true), IsNaN2008bit(false),
-      IsGP64bit(false), HasVFPU(false), HasCnMips(false), HasCnMipsP(false),
+      IsGP64bit(false), HasCnMips(false), HasCnMipsP(false),
       HasMips3_32(false), HasMips3_32r2(false), HasMips4_32(false),
       HasMips4_32r2(false), HasMips5_32r2(false), InMips16Mode(false),
       InMips16HardFloat(Mips16HardFloat), InMicroMipsMode(false), HasDSP(false),
@@ -93,7 +93,7 @@ MipsSubtarget::MipsSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
       AllowMixed16_32(Mixed16_32 || Mips_Os16), Os16(Mips_Os16), HasMSA(false),
       UseTCCInDIV(false), HasSym32(false), HasEVA(false), DisableMadd4(false),
       HasMT(false), HasCRC(false), HasVirt(false), HasGINV(false),
-      UseIndirectJumpsHazard(false), StrictAlign(false),
+      HasAllegrex(false), UseIndirectJumpsHazard(false), StrictAlign(false),
       UseCompactBranches(MipsCompactBranchPolicy != CB_Never),
       StackAlignOverride(StackAlignOverride), TM(TM), TargetTriple(TT),
       InstrInfo(
@@ -116,7 +116,7 @@ MipsSubtarget::MipsSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
     report_fatal_error("Code generation for MIPS-V is not implemented", false);
 
   // Check if Architecture and ABI are compatible.
-  assert(((!isGP64bit() && isABI_O32()) || isGP64bit()) &&
+  assert(((!isGP64bit() && isABI_O32()) || isGP64bit() || isABI_Allegrex()) &&
          "Invalid  Arch & ABI pair.");
 
   if (hasMSA() && !isFP64bit())
@@ -203,6 +203,10 @@ MipsSubtarget::MipsSubtarget(const Triple &TT, StringRef CPU, StringRef FS,
 
   StringRef ArchName = hasMips64() ? "MIPS64" : "MIPS32";
 
+  if(hasAllegrex()) {
+    ArchName = "Allegrex";
+  }
+
   if (!hasMips32r5() && hasMSA() && !MSAWarningPrinted) {
     errs() << "warning: the 'msa' ASE requires " << ArchName
            << " revision 5 or greater\n";
@@ -271,7 +275,7 @@ MipsSubtarget::initializeSubtargetDependencies(StringRef CPU, StringRef FS,
   else if (isABI_N32() || isABI_N64())
     stackAlignment = Align(16);
   else {
-    assert(isABI_O32() && "Unknown ABI for stack alignment!");
+    assert((isABI_O32() || isABI_Allegrex()) && "Unknown ABI for stack alignment!");
     stackAlignment = Align(8);
   }
 
@@ -295,6 +299,7 @@ Reloc::Model MipsSubtarget::getRelocationModel() const {
 bool MipsSubtarget::isABI_N64() const { return getABI().IsN64(); }
 bool MipsSubtarget::isABI_N32() const { return getABI().IsN32(); }
 bool MipsSubtarget::isABI_O32() const { return getABI().IsO32(); }
+bool MipsSubtarget::isABI_Allegrex() const { return getABI().IsAllegrex(); }
 const MipsABIInfo &MipsSubtarget::getABI() const { return TM.getABI(); }
 
 const SelectionDAGTargetInfo *MipsSubtarget::getSelectionDAGInfo() const {

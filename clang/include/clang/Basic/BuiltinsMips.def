@@ -902,4 +902,26 @@ BUILTIN(__builtin_msa_xor_v, "V16cV16cV16c", "nc")
 
 BUILTIN(__builtin_msa_xori_b, "V16cV16cIUi", "nc")
 
+// MIPS Allegrex
+
+BUILTIN(__builtin_allegrex_bitrev, "ii", "nc")
+BUILTIN(__builtin_allegrex_wsbh, "ii", "nc")
+BUILTIN(__builtin_allegrex_wsbw, "ii", "nc")
+BUILTIN(__builtin_allegrex_clz, "ii", "nc")
+BUILTIN(__builtin_allegrex_clo, "ii", "nc")
+BUILTIN(__builtin_allegrex_cto, "ii", "nc")
+BUILTIN(__builtin_allegrex_rotr, "iii", "nc")
+BUILTIN(__builtin_allegrex_rotl, "iii", "nc")
+BUILTIN(__builtin_allegrex_seb, "ii", "nc") //
+BUILTIN(__builtin_allegrex_seh, "ii", "nc") //
+BUILTIN(__builtin_allegrex_max, "iii", "nc")
+BUILTIN(__builtin_allegrex_min, "iii", "nc")
+BUILTIN(__builtin_allegrex_sync, "v", "")
+BUILTIN(__builtin_allegrex_cache, "vii", "")
+BUILTIN(__builtin_allegrex_sqrt_s, "ff", "nc")
+BUILTIN(__builtin_allegrex_ceil_w_s, "ff", "nc")
+BUILTIN(__builtin_allegrex_floor_w_s, "ff", "nc")
+BUILTIN(__builtin_allegrex_round_w_s, "ff", "nc")
+BUILTIN(__builtin_allegrex_trunc_w_s, "ff", "nc")
+
 #undef BUILTIN

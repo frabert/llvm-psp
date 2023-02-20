@@ -624,7 +624,8 @@ let AdditionalPredicates = [NotInMicroMips] in {
              LW_FM<0x39>, ISA_MIPS1;
 }
 
-let DecoderNamespace = "MipsFP64", AdditionalPredicates = [NotInMicroMips] in {
+let DecoderNamespace = "MipsFP64", AdditionalPredicates = [NotInMicroMips,
+                                                           NotInAllegrex] in {
   def LDC164 : StdMMR6Rel, LW_FT<"ldc1", FGR64Opnd, mem_simm16, II_LDC1, load>,
                LW_FM<0x35>, ISA_MIPS2, FGR_64 {
     let BaseOpcode = "LDC164";
@@ -633,7 +634,7 @@ let DecoderNamespace = "MipsFP64", AdditionalPredicates = [NotInMicroMips] in {
                LW_FM<0x3d>, ISA_MIPS2, FGR_64;
 }
 
-let AdditionalPredicates = [NotInMicroMips] in {
+let AdditionalPredicates = [NotInMicroMips, NotInAllegrex] in {
   def LDC1 : MMRel, StdMMR6Rel, LW_FT<"ldc1", AFGR64Opnd, mem_simm16, II_LDC1,
                                       load>, LW_FM<0x35>, ISA_MIPS2, FGR_32 {
     let BaseOpcode = "LDC132";
@@ -645,10 +646,12 @@ let AdditionalPredicates = [NotInMicroMips] in {
 // Indexed loads and stores.
 // Base register + offset register addressing mode (indicated by "x" in the
 // instruction mnemonic).
-def LWXC1 : MMRel, LWXC1_FT<"lwxc1", FGR32Opnd, II_LWXC1, load>, LWXC1_FM<0>,
-            INSN_MIPS4_32R2_NOT_32R6_64R6;
-def SWXC1 : MMRel, SWXC1_FT<"swxc1", FGR32Opnd, II_SWXC1, store>, SWXC1_FM<8>,
-            INSN_MIPS4_32R2_NOT_32R6_64R6;
+let AdditionalPredicates = [NotInAllegrex] in {
+  def LWXC1 : MMRel, LWXC1_FT<"lwxc1", FGR32Opnd, II_LWXC1, load>, LWXC1_FM<0>,
+              INSN_MIPS4_32R2_NOT_32R6_64R6;
+  def SWXC1 : MMRel, SWXC1_FT<"swxc1", FGR32Opnd, II_SWXC1, store>, SWXC1_FM<8>,
+              INSN_MIPS4_32R2_NOT_32R6_64R6;
+}
 
 let AdditionalPredicates = [NotInMicroMips] in {
   def LDXC1 : LWXC1_FT<"ldxc1", AFGR64Opnd, II_LDXC1, load>, LWXC1_FM<1>,

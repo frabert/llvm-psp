@@ -25,7 +25,7 @@ MipsELFMCAsmInfo::MipsELFMCAsmInfo(const Triple &TheTriple,
   IsLittleEndian = TheTriple.isLittleEndian();
 
   MipsABIInfo ABI =
-      MipsABIInfo::computeTargetABI(TheTriple, Options.getABIName());
+      MipsABIInfo::computeTargetABI(TheTriple, "", Options.getABIName());
 
   if (TheTriple.isMIPS64() && !ABI.IsN32())
     CodePointerSize = CalleeSaveStackSlotSize = 8;

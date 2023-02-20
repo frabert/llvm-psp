@@ -123,6 +123,8 @@ enum {
   FrmFI = 5,
   // This form is for instructions that have no specific format.
   FrmOther = 6,
+  // This form is for instructions of the format VFPU.
+  FrmVFPU = 7,
 
   FormMask = 15,
   // Instruction is a Control Transfer Instruction.

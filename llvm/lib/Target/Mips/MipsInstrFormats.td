@@ -34,6 +34,7 @@ def FrmJ      : Format<3>;
 def FrmFR     : Format<4>;
 def FrmFI     : Format<5>;
 def FrmOther  : Format<6>; // Instruction w/ a custom format
+def FrmVFPU   : Format<7>;
 
 class MMRel;
 

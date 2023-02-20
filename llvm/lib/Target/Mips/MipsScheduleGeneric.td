@@ -1620,4 +1620,25 @@ def : InstRW<[GenericWriteAtomic],
 def : InstRW<[GenericWriteAtomic],
     (instregex "^ATOMIC_LOAD_(ADD|SUB|AND|OR|XOR|NAND|MIN|MAX|UMIN|UMAX)"
                "_I(8|16|32|64)_POSTRA$")>;
+
+// Allegrex instructions
+def GenericAllegrex : ProcResource<1> { let BufferSize = 1; }
+def GenericWriteAllegrex : SchedWriteRes<[GenericAllegrex]> { let Latency = 0; }
+def : InstRW<[GenericWriteAllegrex], (instrs HALT, DBREAK, DRET, MTIC, MFIC,
+                                             VFLUSH, VSYNC, VNOP, WSBW, MAX, MIN,
+                                             LV_S, LV_Q, SV_S, SV_Q, SVL_Q, SVR_Q,
+                                             CFC0, CTC0, MFDR, MTDR, MFV, MTV,
+                                             MFVC, MTVC, VMFVC, VMTVC, BVF, BVT,
+                                             BVFL, BVTL, BITREV_V, LDL_V, SDL_V,
+                                             VPFXS, VPFXT, VPFXD)>;
+def : InstRW<[GenericWriteAllegrex],
+      (instregex "^V(ADD|SUB|DIV|MUL|DOT|HDP|MIN|MAX|ABS|NEG|RCP|RSQ|SIN|COS|"
+                 "EXP2|LOG2|SQRT|ASIN|NRCP|NSIN|REXP2|SGN|CST|IDT|ZERO|ONE|"
+                 "MIDT|MZERO|CRS|CRSP|SCMP|SGE|SLT|AVG|BFY1|BFY2|T5650|"
+                 "T5551|T4444|SRT1|SRT2|SRT3|SRT4|DET|FHDP|F2H|FAD|MMUL|MOV|"
+                 "MMOV|MONE|HTFM2|HTFM3|HTFM4|MSCL|H2F|I2C|I2UC|I2S|I2US|OCP|LGB|"
+                 "QMUL|RNDF1|RNDF2|RNDI|RNDS|S2I|US2I|SAT0|SAT1|SBZ|SCL|SOCP|SBN|"
+                 "TFM2|TFM3|TFM4|IIM|FIM|CMP|F2IN|F2IZ|F2IU|F2ID|I2F|CMOVT|CMOVF|"
+                 "WB|WBN|ROT)"
+                 "_(S|P|T|Q)$")>;
 }
