@@ -118,6 +118,8 @@ namespace MipsII {
     FrmFI = 5,
     /// FrmOther - This form is for instructions that have no specific format.
     FrmOther = 6,
+    /// FrmVFPU - This form is form instruction of the format VFPU.
+    FrmVFPU = 7,
 
     FormMask = 15,
     /// IsCTI - Instruction is a Control Transfer Instruction.

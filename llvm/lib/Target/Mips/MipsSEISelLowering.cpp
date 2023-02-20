@@ -173,6 +173,13 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
     }
   }
 
+  if (Subtarget.hasAllegrex()) {
+    addRegisterClass(MVT::f32, &Mips::VFPUSRegClass);
+    addRegisterClass(MVT::v2f32, &Mips::VFPUPRegClass);
+    addRegisterClass(MVT::v3f32, &Mips::VFPUTRegClass);
+    addRegisterClass(MVT::v4f32, &Mips::VFPUQRegClass);
+  }
+
   setOperationAction(ISD::SMUL_LOHI,          MVT::i32, Custom);
   setOperationAction(ISD::UMUL_LOHI,          MVT::i32, Custom);
   setOperationAction(ISD::MULHS,              MVT::i32, Custom);

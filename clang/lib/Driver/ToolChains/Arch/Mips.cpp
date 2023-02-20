@@ -90,6 +90,7 @@ void mips::getMipsCPUAndABI(const ArgList &Args, const llvm::Triple &Triple,
                   .Case("mips1", "o32")
                   .Case("mips2", "o32")
                   .Case("mips3", "n64")
+                  .Case("allegrex", "o32")
                   .Case("mips4", "n64")
                   .Case("mips5", "n64")
                   .Case("mips32", "o32")

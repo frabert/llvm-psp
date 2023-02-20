@@ -390,9 +390,10 @@ void MipsAsmPrinter::emitFrameDirective() {
 /// Emit Set directives.
 const char *MipsAsmPrinter::getCurrentABIString() const {
   switch (static_cast<MipsTargetMachine &>(TM).getABI().GetEnumValue()) {
-  case MipsABIInfo::ABI::O32:  return "abi32";
-  case MipsABIInfo::ABI::N32:  return "abiN32";
-  case MipsABIInfo::ABI::N64:  return "abi64";
+  case MipsABIInfo::ABI::O32:      return "abi32";
+  case MipsABIInfo::ABI::N32:      return "abiN32";
+  case MipsABIInfo::ABI::N64:      return "abi64";
+  case MipsABIInfo::ABI::Allegrex: return "abiAllegrex";
   default: llvm_unreachable("Unknown Mips ABI");
   }
 }

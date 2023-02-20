@@ -90,6 +90,19 @@ def CC_MipsO32 : CallingConv<[
   CCIfType<[f64], CCAssignToStack<8, 8>>
 ]>;
 
+def CC_MipsAllegrex : CallingConv<[
+  // Promote i8/i16 arguments to i32.
+  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+
+  // Integer values get stored in stack slots that are 4 bytes in
+  // size and 4-byte aligned.
+  CCIfType<[i32, f32], CCAssignToStack<4, 4>>,
+
+  // Integer values get stored in stack slots that are 8 bytes in
+  // size and 8-byte aligned.
+  CCIfType<[i64, f64], CCAssignToStack<8, 8>>
+]>;
+
 // Only the return rules are defined here for O32. The rules for argument
 // passing are defined in MipsISelLowering.cpp.
 def RetCC_MipsO32 : CallingConv<[
@@ -108,6 +121,13 @@ def RetCC_MipsO32 : CallingConv<[
   // in D0 and D1 in FP32bit mode.
   CCIfType<[f64], CCIfSubtarget<"isFP64bit()", CCAssignToReg<[D0_64, D2_64]>>>,
   CCIfType<[f64], CCIfSubtargetNot<"isFP64bit()", CCAssignToReg<[D0, D1]>>>
+]>;
+
+def RetCC_MipsAllegrex : CallingConv<[
+  // Promote i1/i8/i16 return values to i32.
+  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
+
+  CCIfType<[i32], CCAssignToReg<[V0, V1]>>
 ]>;
 
 def CC_MipsO32_FP32 : CustomCallingConv;
@@ -298,12 +318,14 @@ def CC_Mips_FastCC : CallingConv<[
 //===----------------------------------------------------------------------===//
 
 def RetCC_Mips : CallingConv<[
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<RetCC_MipsAllegrex>>,
   CCIfSubtarget<"isABI_N32()", CCDelegateTo<RetCC_MipsN>>,
   CCIfSubtarget<"isABI_N64()", CCDelegateTo<RetCC_MipsN>>,
   CCDelegateTo<RetCC_MipsO32>
 ]>;
 
 def CC_Mips_ByVal : CallingConv<[
+  CCIfSubtarget<"isABI_Allegrex()", CCIfByVal<CCPassByVal<4, 4>>>,
   CCIfSubtarget<"isABI_O32()", CCIfByVal<CCPassByVal<4, 4>>>,
   CCIfByVal<CCPassByVal<8, 8>>
 ]>;
@@ -339,6 +361,7 @@ def CC_Mips_FixedArg : CallingConv<[
 
   CCIfCC<"CallingConv::Fast", CCDelegateTo<CC_Mips_FastCC>>,
 
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsAllegrex>>,
   CCIfSubtarget<"isABI_O32()", CCDelegateTo<CC_MipsO32_FP>>,
   CCDelegateTo<CC_MipsN>
 ]>;
@@ -346,6 +369,7 @@ def CC_Mips_FixedArg : CallingConv<[
 def CC_Mips_VarArg : CallingConv<[
   CCIfByVal<CCDelegateTo<CC_Mips_ByVal>>,
 
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsAllegrex>>,
   CCIfSubtarget<"isABI_O32()", CCDelegateTo<CC_MipsO32_FP>>,
   CCDelegateTo<CC_MipsN_VarArg>
 ]>;

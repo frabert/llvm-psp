@@ -25,6 +25,9 @@ EmitJalrReloc("mips-jalr-reloc", cl::Hidden,
 
 namespace {
 static const MCPhysReg O32IntRegs[4] = {Mips::A0, Mips::A1, Mips::A2, Mips::A3};
+static const MCPhysReg AllegrexIntRegs[8] = {
+    Mips::A0, Mips::A1, Mips::A2, Mips::A3,
+    Mips::T0, Mips::T1, Mips::T2, Mips::T3};
 
 static const MCPhysReg Mips64IntRegs[8] = {
     Mips::A0_64, Mips::A1_64, Mips::A2_64, Mips::A3_64,
@@ -36,6 +39,8 @@ ArrayRef<MCPhysReg> MipsABIInfo::GetByValArgRegs() const {
     return ArrayRef(O32IntRegs);
   if (IsN32() || IsN64())
     return ArrayRef(Mips64IntRegs);
+  if (IsAllegrex())
+    return ArrayRef(AllegrexIntRegs);
   llvm_unreachable("Unhandled ABI");
 }
 
@@ -44,19 +49,23 @@ ArrayRef<MCPhysReg> MipsABIInfo::GetVarArgRegs() const {
     return ArrayRef(O32IntRegs);
   if (IsN32() || IsN64())
     return ArrayRef(Mips64IntRegs);
+  if (IsAllegrex())
+    return ArrayRef(AllegrexIntRegs);
   llvm_unreachable("Unhandled ABI");
 }
 
 unsigned MipsABIInfo::GetCalleeAllocdArgSizeInBytes(CallingConv::ID CC) const {
   if (IsO32())
     return CC != CallingConv::Fast ? 16 : 0;
-  if (IsN32() || IsN64())
+  if (IsN32() || IsN64() || IsAllegrex())
     return 0;
   llvm_unreachable("Unhandled ABI");
 }
 
 MipsABIInfo MipsABIInfo::computeTargetABI(const Triple &TT, StringRef CPU,
                                           const MCTargetOptions &Options) {
+  if (CPU.equals("allegrex"))
+    return MipsABIInfo::Allegrex();
   if (Options.getABIName().startswith("o32"))
     return MipsABIInfo::O32();
   if (Options.getABIName().startswith("n32"))

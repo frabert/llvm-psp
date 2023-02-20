@@ -67,6 +67,7 @@ void MipsTargetStreamer::emitDirectiveSetVirt() {}
 void MipsTargetStreamer::emitDirectiveSetNoVirt() {}
 void MipsTargetStreamer::emitDirectiveSetGINV() {}
 void MipsTargetStreamer::emitDirectiveSetNoGINV() {}
+void MipsTargetStreamer::emitDirectiveSetAllegrex() {}
 void MipsTargetStreamer::emitDirectiveSetAt() { forbidModuleDirective(); }
 void MipsTargetStreamer::emitDirectiveSetAtWithArg(unsigned RegNo) {
   forbidModuleDirective();
@@ -472,6 +473,11 @@ void MipsTargetAsmStreamer::emitDirectiveSetGINV() {
 void MipsTargetAsmStreamer::emitDirectiveSetNoGINV() {
   OS << "\t.set\tnoginv\n";
   MipsTargetStreamer::emitDirectiveSetNoGINV();
+}
+
+void MipsTargetAsmStreamer::emitDirectiveSetAllegrex() {
+  OS << "\t.set\tallegrex\n";
+  MipsTargetStreamer::emitDirectiveSetAllegrex();
 }
 
 void MipsTargetAsmStreamer::emitDirectiveSetAt() {

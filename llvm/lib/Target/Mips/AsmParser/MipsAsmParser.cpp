@@ -202,6 +202,22 @@ class MipsAsmParser : public MCTargetAsmParser {
                                             const AsmToken &Token, SMLoc S);
   ParseStatus matchAnyRegisterWithoutDollar(OperandVector &Operands, SMLoc S);
   ParseStatus parseAnyRegister(OperandVector &Operands);
+  ParseStatus parseVFPUSRegister(OperandVector &Operands);
+  ParseStatus parseVFPUPRegister(OperandVector &Operands);
+  ParseStatus parseVFPUTRegister(OperandVector &Operands);
+  ParseStatus parseVFPUQRegister(OperandVector &Operands);
+  ParseStatus parseVFPUM4Register(OperandVector &Operands);
+  ParseStatus parseVFPUM3Register(OperandVector &Operands);
+  ParseStatus parseVFPUM2Register(OperandVector &Operands);
+  ParseStatus parseVFPUConstant(OperandVector &Operands);
+  ParseStatus parseVFPUCondition(OperandVector &Operands);
+  ParseStatus parseVFPUWriteBack(OperandVector &Operands);
+  ParseStatus parseVCRRegister(OperandVector &Operands);
+  ParseStatus parseVFPUPRotation(OperandVector &Operands);
+  ParseStatus parseVFPUTRotation(OperandVector &Operands);
+  ParseStatus parseVFPUQRotation(OperandVector &Operands);
+  ParseStatus parseVFPUSwizzle(OperandVector &Operands);
+  ParseStatus parseVFPUSaturation(OperandVector &Operands);
   ParseStatus parseImm(OperandVector &Operands);
   ParseStatus parseJumpTarget(OperandVector &Operands);
   ParseStatus parseInvNum(OperandVector &Operands);
@@ -724,6 +740,10 @@ public:
     return getSTI().hasFeature(Mips::FeatureGINV);
   }
 
+  bool hasAllegrex() const {
+    return getSTI().getFeatureBits()[Mips::FeatureAllegrex];
+  }
+
   /// Warn if RegIndex is the same as the current AT.
   void warnIfRegIndexIsAT(unsigned RegIndex, SMLoc Loc);
 
@@ -813,10 +833,13 @@ public:
     RegKind_HWRegs = 256, /// HWRegs
     RegKind_COP3 = 512,   /// COP3
     RegKind_COP0 = 1024,  /// COP0
+    RegKind_VFPU = 2048,  /// VFPU
+    RegKind_VCR = 4096,
     /// Potentially any (e.g. $1)
     RegKind_Numeric = RegKind_GPR | RegKind_FGR | RegKind_FCC | RegKind_MSA128 |
                       RegKind_MSACtrl | RegKind_COP2 | RegKind_ACC |
-                      RegKind_CCR | RegKind_HWRegs | RegKind_COP3 | RegKind_COP0
+                      RegKind_CCR | RegKind_HWRegs | RegKind_COP3 | RegKind_COP0 |
+                      RegKind_VCR
   };
 
 private:
@@ -826,6 +849,12 @@ private:
     k_RegisterIndex, /// A register index in one or more RegKind.
     k_Token,         /// A simple token
     k_RegList,       /// A physical register list
+    k_VFPUConstant,  /// A VFPU constant
+    k_VFPUCondition, /// A VFPU condition
+    k_VFPUWriteBack, /// A VFPU write back flag
+    k_VFPURotation,
+    k_VFPUSwizzle,
+    k_VFPUSaturation,
   } Kind;
 
 public:
@@ -842,6 +871,12 @@ public:
     case k_Immediate:
     case k_RegisterIndex:
     case k_Token:
+    case k_VFPUConstant:
+    case k_VFPUCondition:
+    case k_VFPUWriteBack:
+    case k_VFPURotation:
+    case k_VFPUSwizzle:
+    case k_VFPUSaturation:
       break;
     }
   }
@@ -875,12 +910,17 @@ private:
     SmallVector<unsigned, 10> *List;
   };
 
+  struct VFPUConstOp {
+    unsigned Index;
+  };
+
   union {
     struct Token Tok;
     struct RegIdxOp RegIdx;
     struct ImmOp Imm;
     struct MemOp Mem;
     struct RegListOp RegList;
+    struct VFPUConstOp Constant;
   };
 
   SMLoc StartLoc, EndLoc;
@@ -1036,6 +1076,12 @@ private:
     unsigned ClassID = Mips::CCRRegClassID;
     return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
   }
+  
+  unsigned getVCRReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VCR) && "Invalid access!");
+    unsigned ClassID = Mips::VCRRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
 
   /// Coerce the register to HWRegs and return the real register for the
   /// current target.
@@ -1043,6 +1089,96 @@ private:
     assert(isRegIdx() && (RegIdx.Kind & RegKind_HWRegs) && "Invalid access!");
     unsigned ClassID = Mips::HWRegsRegClassID;
     return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUSReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUSRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUPReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUPRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUTReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUTRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUQReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUQRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM2Reg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM2RegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM2IReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM2IRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM3Reg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM3RegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM3IReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM3IRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM4Reg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM4RegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUM4IReg() const {
+    assert(isRegIdx() && (RegIdx.Kind & RegKind_VFPU) && "Invalid acceess!");
+    unsigned ClassID = Mips::VFPUM4IRegClassID;
+    return RegIdx.RegInfo->getRegClass(ClassID).getRegister(RegIdx.Index);
+  }
+
+  unsigned getVFPUConstant() const {
+    assert(isVFPUConstant() && "Invalid acceess!");
+    return Constant.Index;
+  }
+
+  unsigned getVFPUCondition() const {
+    assert(isVFPUCondition() && "Invalid acceess!");
+    return Constant.Index;
+  }
+
+  unsigned getVFPUWriteBack() const {
+    assert(isVFPUWriteBack() && "Invalid acceess!");
+    return Constant.Index;
+  }
+
+  unsigned getVFPURotation() const {
+    assert(isVFPURotation() && "Invalid acceess!");
+    return Constant.Index;
+  }
+
+  unsigned getVFPUSwizzle() const {
+    assert(isVFPUSwizzle() && "Invalid acceess!");
+    return Constant.Index;
+  }
+
+  unsigned getVFPUSaturation() const {
+    assert(isVFPUSaturation() && "Invalid acceess!");
+    return Constant.Index;
   }
 
 public:
@@ -1202,6 +1338,11 @@ public:
     Inst.addOperand(MCOperand::createReg(getCCRReg()));
   }
 
+  void addVCRAsmRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVCRReg()));
+  }
+
   void addHWRegsAsmRegOperands(MCInst &Inst, unsigned N) const {
     assert(N == 1 && "Invalid number of operands!");
     Inst.addOperand(MCOperand::createReg(getHWRegsReg()));
@@ -1277,6 +1418,86 @@ public:
     for (auto RegNo : getRegList())
       Inst.addOperand(MCOperand::createReg(RegNo));
   }
+  
+  void addVFPUSRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUSReg()));
+  }
+
+  void addVFPUPRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUPReg()));
+  }
+
+  void addVFPUTRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUTReg()));
+  }
+
+  void addVFPUQRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUQReg()));
+  }
+
+  void addVFPUM2RegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM2Reg()));
+  }
+
+  void addVFPUM2IRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM2IReg()));
+  }
+
+  void addVFPUM3RegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM3Reg()));
+  }
+
+  void addVFPUM3IRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM3IReg()));
+  }
+
+  void addVFPUM4RegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM4Reg()));
+  }
+
+  void addVFPUM4IRegOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createReg(getVFPUM4IReg()));
+  }
+
+  void addVFPUConstantOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPUConstant()));
+  }
+
+  void addVFPUConditionOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPUCondition()));
+  }
+
+  void addVFPUWriteBackOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPUWriteBack()));
+  }
+
+  void addVFPURotationOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPURotation()));
+  }
+
+  void addVFPUSwizzleOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPUSwizzle()));
+  }
+
+  void addVFPUSaturationOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && "Invalid number of operands!");
+    Inst.addOperand(MCOperand::createImm(getVFPUSaturation()));
+  }
 
   bool isReg() const override {
     // As a special case until we sort out the definition of div/divu, accept
@@ -1333,6 +1554,30 @@ public:
 
   bool isConstantMemOff() const {
     return isMem() && isa<MCConstantExpr>(getMemOff());
+  }
+
+  bool isVFPUConstant() const {
+    return Kind == k_VFPUConstant;
+  }
+
+  bool isVFPUCondition() const {
+    return Kind == k_VFPUCondition;
+  }
+
+  bool isVFPUWriteBack() const {
+    return Kind == k_VFPUWriteBack;
+  }
+
+  bool isVFPURotation() const {
+    return Kind == k_VFPURotation;
+  }
+
+  bool isVFPUSwizzle() const {
+    return Kind == k_VFPUSwizzle;
+  }
+
+  bool isVFPUSaturation() const {
+    return Kind == k_VFPUSaturation;
   }
 
   // Allow relocation operators.
@@ -1564,6 +1809,74 @@ public:
     return CreateReg(Index, Str, RegKind_MSACtrl, RegInfo, S, E, Parser);
   }
 
+  // Create an Allegrex VFPU register.
+  static std::unique_ptr<MipsOperand>
+  createVFPUReg(unsigned Index, StringRef Str, const MCRegisterInfo *RegInfo,
+                SMLoc S, SMLoc E, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUReg(" << Index << ", ...)\n");
+    return CreateReg(Index, Str, RegKind_VFPU, RegInfo, S, E, Parser);
+  }
+
+  // Create an Allegrex VFPU constant.
+  static std::unique_ptr<MipsOperand>
+  createVFPUConstant(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUConstant(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPUConstant, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
+  // Create an Allegrex VFPU condition.
+  static std::unique_ptr<MipsOperand>
+  createVFPUCondition(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUCondition(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPUCondition, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
+  // Create an Allegrex VFPU write back flag.
+  static std::unique_ptr<MipsOperand>
+  createVFPUWriteBack(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUWriteBack(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPUWriteBack, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
+  // Create an Allegrex rotation.
+  static std::unique_ptr<MipsOperand>
+  createVFPURotation(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPURotation(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPURotation, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
+  // Create an Allegrex swizzle.
+  static std::unique_ptr<MipsOperand>
+  createVFPUSwizzle(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUSwizzle(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPUSwizzle, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
+  // Create an Allegrex saturation.
+  static std::unique_ptr<MipsOperand>
+  createVFPUSaturation(unsigned Index, MipsAsmParser &Parser) {
+    DEBUG_WITH_TYPE("allegrex", dbgs() << "createVFPUSaturation(" << Index << ", ...)\n");
+    auto Op = std::make_unique<MipsOperand>(k_VFPUSaturation, Parser);
+    Op->Constant.Index = Index;
+
+    return std::move(Op);
+  }
+
   static std::unique_ptr<MipsOperand>
   CreateImm(const MCExpr *Val, SMLoc S, SMLoc E, MipsAsmParser &Parser) {
     auto Op = std::make_unique<MipsOperand>(k_Immediate, Parser);
@@ -1692,6 +2005,14 @@ public:
     return isRegIdx() && RegIdx.Kind & RegKind_MSACtrl && RegIdx.Index <= 7;
   }
 
+  bool isVFPUReg() const {
+    return isRegIdx() && RegIdx.Kind & RegKind_VFPU;
+  }
+
+  bool isVCRAsmReg() const {
+    return isRegIdx() && RegIdx.Kind & RegKind_VCR && RegIdx.Index >= 128 && RegIdx.Index <= 143;
+  }
+
   /// getStartLoc - Get the location of the first token of this operand.
   SMLoc getStartLoc() const override { return StartLoc; }
   /// getEndLoc - Get the location of the last token of this operand.
@@ -1723,6 +2044,24 @@ public:
       for (auto Reg : (*RegList.List))
         OS << Reg << " ";
       OS <<  ">";
+      break;
+    case k_VFPUConstant:
+      OS << "VFPUConstant<" << Constant.Index << ">";
+      break;
+    case k_VFPUCondition:
+      OS << "VFPUCondition<" << Constant.Index << ">";
+      break;
+    case k_VFPUWriteBack:
+      OS << "VFPUWriteBack<" << Constant.Index << ">";
+      break;
+    case k_VFPURotation:
+      OS << "VFPURotation<" << Constant.Index << ">";
+      break;
+    case k_VFPUSwizzle:
+      OS << "VFPUSwizzle<" << Constant.Index << ">";
+      break;
+    case k_VFPUSaturation:
+      OS << "VFPUSaturation<" << Constant.Index << ">";
       break;
     }
   }
@@ -4917,8 +5256,8 @@ bool MipsAsmParser::expandRotationImm(MCInst &Inst, SMLoc IDLoc,
   unsigned FirstShift = Mips::NOP;
   unsigned SecondShift = Mips::NOP;
 
-  if (hasMips32r2()) {
-    if (Inst.getOpcode() == Mips::ROLImm) {
+  if (hasMips32r2() || hasAllegrex()) {
+    if (Inst.getOpcode() == Mips::ROLImm || Inst.getOpcode() == Mips::ROTL) {
       uint64_t MaxShift = 32;
       uint64_t ShiftValue = ImmValue;
       if (ImmValue != 0)
@@ -6721,6 +7060,661 @@ ParseStatus MipsAsmParser::parseAnyRegister(OperandVector &Operands) {
   return Res;
 }
 
+ParseStatus MipsAsmParser::parseVFPUSRegister(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUSRegister\n");
+
+  static const char * const registers[] = {
+    "s000", "s010", "s020", "s030", "s100", "s110", "s120", "s130",
+    "s200", "s210", "s220", "s230", "s300", "s310", "s320", "s330",
+    "s400", "s410", "s420", "s430", "s500", "s510", "s520", "s530",
+    "s600", "s610", "s620", "s630", "s700", "s710", "s720", "s730",
+    "s001", "s011", "s021", "s031", "s101", "s111", "s121", "s131",
+    "s201", "s211", "s221", "s231", "s301", "s311", "s321", "s331",
+    "s401", "s411", "s421", "s431", "s501", "s511", "s521", "s531",
+    "s601", "s611", "s621", "s631", "s701", "s711", "s721", "s731",
+    "s002", "s012", "s022", "s032", "s102", "s112", "s122", "s132",
+    "s202", "s212", "s222", "s232", "s302", "s312", "s322", "s332",
+    "s402", "s412", "s422", "s432", "s502", "s512", "s522", "s532",
+    "s602", "s612", "s622", "s632", "s702", "s712", "s722", "s732",
+    "s003", "s013", "s023", "s033", "s103", "s113", "s123", "s133",
+    "s203", "s213", "s223", "s233", "s303", "s313", "s323", "s333",
+    "s403", "s413", "s423", "s433", "s503", "s513", "s523", "s533",
+    "s603", "s613", "s623", "s633", "s703", "s713", "s723", "s733"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 128; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUPRegister(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUPRegister\n");
+
+  static const char * const registers[] = {
+    "c000", "c010", "c020", "c030", "c100", "c110", "c120", "c130",
+    "c200", "c210", "c220", "c230", "c300", "c310", "c320", "c330",
+    "c400", "c410", "c420", "c430", "c500", "c510", "c520", "c530",
+    "c600", "c610", "c620", "c630", "c700", "c710", "c720", "c730",
+    "r000", "r001", "r002", "r003", "r100", "r101", "r102", "r103",
+    "r200", "r201", "r202", "r203", "r300", "r301", "r302", "r303",
+    "r400", "r401", "r402", "r403", "r500", "r501", "r502", "r503",
+    "r600", "r601", "r602", "r603", "r700", "r701", "r702", "r703",
+    "c002", "c012", "c022", "c032", "c102", "c112", "c122", "c132",
+    "c202", "c212", "c222", "c232", "c302", "c312", "c322", "c332",
+    "c402", "c412", "c422", "c432", "c502", "c512", "c522", "c532",
+    "c602", "c612", "c622", "c632", "c702", "c712", "c722", "c732",
+    "r020", "r021", "r022", "r023", "r120", "r121", "r122", "r123",
+    "r220", "r221", "r222", "r223", "r320", "r321", "r322", "r323",
+    "r420", "r421", "r422", "r423", "r520", "r521", "r522", "r523",
+    "r620", "r621", "r622", "r623", "r720", "r721", "r722", "r723"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 128; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUTRegister(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUTRegister\n");
+
+  static const char * const registers[] = {
+    "c000", "c010", "c020", "c030", "c100", "c110", "c120", "c130",
+    "c200", "c210", "c220", "c230", "c300", "c310", "c320", "c330",
+    "c400", "c410", "c420", "c430", "c500", "c510", "c520", "c530",
+    "c600", "c610", "c620", "c630", "c700", "c710", "c720", "c730",
+    "r000", "r001", "r002", "r003", "r100", "r101", "r102", "r103",
+    "r200", "r201", "r202", "r203", "r300", "r301", "r302", "r303",
+    "r400", "r401", "r402", "r403", "r500", "r501", "r502", "r503",
+    "r600", "r601", "r602", "r603", "r700", "r701", "r702", "r703",
+    "c001", "c011", "c021", "c031", "c101", "c111", "c121", "c131",
+    "c201", "c211", "c221", "c231", "c301", "c311", "c321", "c331",
+    "c401", "c411", "c421", "c431", "c501", "c511", "c521", "c531",
+    "c601", "c611", "c621", "c631", "c701", "c711", "c721", "c731",
+    "r010", "r011", "r012", "r013", "r110", "r111", "r112", "r113",
+    "r210", "r211", "r212", "r213", "r310", "r311", "r312", "r313",
+    "r410", "r411", "r412", "r413", "r510", "r511", "r512", "r513",
+    "r610", "r611", "r612", "r613", "r710", "r711", "r712", "r713"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 128; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUQRegister(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUQRegister\n");
+
+  static const char * const registers[] = {
+    "c000", "c010", "c020", "c030", "c100", "c110", "c120", "c130",
+    "c200", "c210", "c220", "c230", "c300", "c310", "c320", "c330",
+    "c400", "c410", "c420", "c430", "c500", "c510", "c520", "c530",
+    "c600", "c610", "c620", "c630", "c700", "c710", "c720", "c730",
+    "r000", "r001", "r002", "r003", "r100", "r101", "r102", "r103",
+    "r200", "r201", "r202", "r203", "r300", "r301", "r302", "r303",
+    "r400", "r401", "r402", "r403", "r500", "r501", "r502", "r503",
+    "r600", "r601", "r602", "r603", "r700", "r701", "r702", "r703"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 64; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUM4Register(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUM4Register\n");
+
+  static const char * const registers[] = {
+    "M000", "M100", "M200", "M300",
+    "M400", "M500", "M600", "M700",
+    "E000", "E100", "E200", "E300",
+    "E400", "E500", "E600", "E700",
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 16; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUM3Register(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUM3Register\n");
+
+  static const char * const registers[] = {
+    "M000", "M010", "M100", "M110", "M200", "M210", "M300", "M310",
+    "M400", "M410", "M500", "M510", "M600", "M610", "M700", "M710",
+    "E000", "E001", "E100", "E101", "E200", "E201", "E300", "E301",
+    "E400", "E401", "E500", "E501", "E600", "E601", "E700", "E701",
+    "M001", "M011", "M101", "M111", "M201", "M211", "M301", "M311",
+    "M401", "M411", "M501", "M511", "M601", "M611", "M701", "M711",
+    "E010", "E011", "E110", "E111", "E210", "E211", "E310", "E311",
+    "E410", "E411", "E510", "E511", "E610", "E611", "E710", "E711"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 64; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUM2Register(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUM2Register\n");
+
+  static const char * const registers[] = {
+    "M000", "M020", "M100", "M120", "M200", "M220", "M300", "M320",
+    "M400", "M420", "M500", "M520", "M600", "M620", "M700", "M720",
+    "E000", "E002", "E100", "E102", "E200", "E202", "E300", "E302",
+    "E400", "E402", "E500", "E502", "E600", "E602", "E700", "E702",
+    "M002", "M022", "M102", "M122", "M202", "M222", "M302", "M322",
+    "M402", "M422", "M502", "M522", "M602", "M622", "M702", "M722",
+    "E020", "E022", "E120", "E122", "E220", "E222", "E320", "E322",
+    "E420", "E422", "E520", "E522", "E620", "E622", "E720", "E722"
+  };
+
+  auto Token = Parser.getTok();
+
+  SMLoc S = Token.getLoc();
+
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+
+  auto Ident = Token.getIdentifier();
+  
+  for(int i = 0; i < 64; i++) {
+    if(Ident.equals_insensitive(registers[i])) {
+      Operands.push_back(MipsOperand::createVFPUReg(
+        i, Ident,
+        getContext().getRegisterInfo(), S,
+        getLexer().getLoc(), *this));
+
+      Parser.Lex();
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUConstant(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUConstant\n");
+
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+  auto Ident = Token.getIdentifier();
+
+  static const char* constants[] = {
+    "",
+    "vfpu_huge",
+    "vfpu_sqrt2",
+    "vfpu_sqrt1_2",
+    "vfpu_2_sqrtpi",
+    "vfpu_2_pi",
+    "vfpu_1_pi",
+    "vfpu_pi_4",
+    "vfpu_pi_2",
+    "vfpu_pi",
+    "vfpu_e",
+    "vfpu_log2e",
+    "vfpu_log10e",
+    "vfpu_ln2",
+    "vfpu_ln10",
+    "vfpu_2pi",
+    "vfpu_pi_6",
+    "vfpu_log10two",
+    "vfpu_log2ten",
+    "vfpu_sqrt3_2"
+  };
+
+  for(int i = 0; i < 20; i++) {
+    if(Ident.equals_insensitive(constants[i])) {
+      Parser.Lex();
+      Operands.push_back(MipsOperand::createVFPUConstant(i, *this));
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUCondition(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUCondition\n");
+
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+  auto Ident = Token.getIdentifier();
+
+  static const char* constants[] = {
+    "fl", "eq", "lt", "le",
+    "tr", "ne", "ge", "gt",
+    "ez", "en", "ei", "es",
+    "nz", "nn", "ni", "ns"
+  };
+
+  for(int i = 0; i < 16; i++) {
+    if(Ident.equals_insensitive(constants[i])) {
+      Parser.Lex();
+      Operands.push_back(MipsOperand::createVFPUCondition(i, *this));
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVFPUWriteBack(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUWriteBack\n");
+
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::Identifier)) {
+    return MatchOperand_NoMatch;
+  }
+  auto Ident = Token.getIdentifier();
+
+  static const char* constants[] = { "wt", "wb" };
+
+  for(int i = 0; i < 16; i++) {
+    if(Ident.equals_insensitive(constants[i])) {
+      Parser.Lex();
+      Operands.push_back(MipsOperand::createVFPUWriteBack(i, *this));
+      return MatchOperand_Success;
+    }
+  }
+
+  return MatchOperand_NoMatch;
+}
+
+ParseStatus MipsAsmParser::parseVCRRegister(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVCRRegister\n");
+
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::Dollar)) {
+    return MatchOperand_NoMatch;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+  SMLoc S = Token.getLoc();
+  
+  if(Token.isNot(AsmToken::Integer)) {
+    return MatchOperand_ParseFail;
+  }
+
+  auto RegNum = Token.getIntVal();
+  if(RegNum < 128 || RegNum > 255) {
+    Error(getLexer().getLoc(), "invalid register number");
+    return MatchOperand_ParseFail;
+  }
+  
+  Parser.Lex();
+  Operands.push_back(MipsOperand::createNumericReg(
+      RegNum, Token.getString(), getContext().getRegisterInfo(), S,
+      Token.getLoc(), *this));
+  return MatchOperand_Success;
+}
+
+static ParseStatus parseVFPURotation(MipsAsmParser &AP, MCAsmParser &Parser, OperandVector &Operands, int size) {
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::LBrac)) {
+    return MatchOperand_NoMatch;
+  }
+  Parser.Lex();
+
+  int sine = -1;
+  int cosine = -1;
+  int negative = 0;
+  bool foundZero = false;
+
+  for(int i = 0; i < size; i++) {
+    Token = Parser.getTok();
+    if((sine < 0 || negative) && Token.is(AsmToken::Minus)) {
+      negative = 1;
+      sine = i;
+      Parser.Lex();
+
+      Token = Parser.getTok();
+      if(Token.isNot(AsmToken::Identifier) || !Token.getIdentifier().equals_insensitive("s")) {
+        return MatchOperand_ParseFail;
+      }
+    } else if(Token.is(AsmToken::Integer)) {
+      if(Token.getIntVal() != 0) {
+        return MatchOperand_ParseFail;
+      }
+
+      foundZero = true;
+    } else if(Token.is(AsmToken::Identifier)) {
+      if((!negative || sine < 0) && Token.getIdentifier().equals_insensitive("s")) {
+        sine = i;
+      } else if(cosine < 0 && Token.getIdentifier().equals_insensitive("c")) {
+        cosine = i;
+      } else {
+        return MatchOperand_ParseFail;
+      }
+    } else {
+      return MatchOperand_ParseFail;
+    }
+    Parser.Lex();
+    Token = Parser.getTok();
+    if(i < size - 1) {
+      if(Token.isNot(AsmToken::Comma)) {
+        return MatchOperand_ParseFail;
+      }
+    } else {
+      if(Token.isNot(AsmToken::RBrac)) {
+        return MatchOperand_ParseFail;
+      }
+    }
+    Parser.Lex();
+  }
+
+  if(sine < 0 || cosine < 0) {
+    return MatchOperand_ParseFail;
+  }
+
+  unsigned idx;
+
+  if(!foundZero && size > 2) {
+    idx = (negative << 4) | (cosine << 2) | cosine;
+  } else {
+    idx = (negative << 4) | (sine << 2) | cosine;
+  }
+  Operands.push_back(MipsOperand::createVFPURotation(idx, AP));
+  return MatchOperand_Success;
+}
+
+ParseStatus MipsAsmParser::parseVFPUPRotation(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUPRotation\n");
+
+  return parseVFPURotation(*this, Parser, Operands, 2);
+}
+
+ParseStatus MipsAsmParser::parseVFPUTRotation(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUTRotation\n");
+
+  return parseVFPURotation(*this, Parser, Operands, 3);
+}
+
+ParseStatus MipsAsmParser::parseVFPUQRotation(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUQRotation\n");
+
+  return parseVFPURotation(*this, Parser, Operands, 4);
+}
+
+ParseStatus MipsAsmParser::parseVFPUSwizzle(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUSwizzle\n");
+  
+  auto Token = Parser.getTok();
+
+  unsigned neg = 0;
+  unsigned cst = 0;
+  unsigned abs = 0;
+  unsigned rest = 0;
+
+  if(Token.is(AsmToken::Minus)) {
+    neg = 1 << 4;
+    Parser.Lex();
+    Token = Parser.getTok();
+  }
+
+  if(Token.is(AsmToken::Pipe)) {
+    abs = 1 << 2;
+    Parser.Lex();
+    Token = Parser.getTok();
+  }
+
+  if(Token.is(AsmToken::Identifier)) {
+    auto Ident = Token.getIdentifier();
+    if(Ident.equals_insensitive("x")) {
+      rest = 0;
+    } else if(Ident.equals_insensitive("y")) {
+      rest = 1;
+    } else if(Ident.equals_insensitive("z")) {
+      rest = 2;
+    } else if(Ident.equals_insensitive("w")) {
+      rest = 3;
+    } else {
+      return MatchOperand_ParseFail;
+    }
+  } else if(!abs && Token.is(AsmToken::Integer)) {
+    auto i = Token.getIntVal();
+    cst = 1 << 3;
+    switch(i) {
+      case 0: rest = 0; break;
+      case 1: {
+        if(Parser.getLexer().peekTok().is(AsmToken::Slash)) {
+          Parser.Lex(); // Skip slash
+          Parser.Lex();
+          Token = Parser.getTok();
+
+          if(Token.isNot(AsmToken::Integer)) {
+            return MatchOperand_ParseFail;
+          }
+
+          i = Token.getIntVal();
+          switch(i) {
+            case 2: rest = 3; break;
+            case 3: rest = 5; break;
+            case 4: rest = 6; break;
+            case 6: rest = 7; break;
+          }
+        } else {
+          rest = 0;
+        }
+      } break;
+      case 2: rest = 2; break;
+      case 3: rest = 4; break;
+      default: return MatchOperand_ParseFail;
+    }
+  } else {
+      return MatchOperand_ParseFail;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+
+  if(abs) {
+    if(Token.isNot(AsmToken::Pipe)) {
+      return MatchOperand_ParseFail;
+    }
+    Parser.Lex();
+  }
+
+  Operands.push_back(MipsOperand::createVFPUSwizzle(neg | cst | abs | rest, *this));
+  return MatchOperand_Success;
+}
+
+ParseStatus MipsAsmParser::parseVFPUSaturation(OperandVector &Operands) {
+  MCAsmParser &Parser = getParser();
+  LLVM_DEBUG(dbgs() << "parseVFPUSaturation\n");
+  
+  auto Token = Parser.getTok();
+  if(Token.isNot(AsmToken::LBrac)) {
+    return MatchOperand_NoMatch;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+
+  unsigned i;
+  unsigned m = 0;
+
+  if(Token.is(AsmToken::Integer) && Token.getIntVal() == 0) {
+    i = 1;
+  } else if(Token.is(AsmToken::Minus)) {
+    Parser.Lex();
+    Token = Parser.getTok();
+
+    if(Token.isNot(AsmToken::Integer) || Token.getIntVal() != 1) {
+      return MatchOperand_ParseFail;
+    }
+    i = 3;
+  } else {
+    return MatchOperand_ParseFail;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+  
+  if(Token.isNot(AsmToken::Colon)) {
+    return MatchOperand_ParseFail;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+
+  if(Token.isNot(AsmToken::Integer) || Token.getIntVal() != 1) {
+    return MatchOperand_ParseFail;
+  }
+  Parser.Lex();
+  Token = Parser.getTok();
+
+  if(Token.is(AsmToken::Identifier) && Token.getIdentifier().equals_insensitive("m")) {
+    m = 1 << 2;
+
+    Parser.Lex();
+    Token = Parser.getTok();
+  }
+
+  if(Token.isNot(AsmToken::RBrac)) {
+    return MatchOperand_ParseFail;
+  }
+  Parser.Lex();
+
+  Operands.push_back(MipsOperand::createVFPUSaturation(i | m, *this));
+  return MatchOperand_Success;
+}
+
 ParseStatus MipsAsmParser::parseJumpTarget(OperandVector &Operands) {
   MCAsmParser &Parser = getParser();
   LLVM_DEBUG(dbgs() << "parseJumpTarget\n");
@@ -7486,6 +8480,7 @@ bool MipsAsmParser::parseSetArchDirective() {
           .Case("octeon", "cnmips")
           .Case("octeon+", "cnmipsp")
           .Case("r4000", "mips3") // This is an implementation of Mips3.
+          .Case("allegrex", "allegrex")
           .Default("");
 
   if (ArchFeatureName.empty())
@@ -7595,6 +8590,10 @@ bool MipsAsmParser::parseSetFeature(uint64_t Feature) {
   case Mips::FeatureGINV:
     setFeatureBits(Mips::FeatureGINV, "ginv");
     getTargetStreamer().emitDirectiveSetGINV();
+    break;
+  case Mips::FeatureAllegrex:
+    selectArch("allegrex");
+    getTargetStreamer().emitDirectiveSetAllegrex();
     break;
   }
   return false;
@@ -7980,6 +8979,8 @@ bool MipsAsmParser::parseDirectiveSet() {
     return parseSetFeature(Mips::FeatureGINV);
   if (IdVal == "noginv")
     return parseSetNoGINVDirective();
+  if (IdVal == "allegrex")
+    return parseSetFeature(Mips::FeatureAllegrex);
 
   // It is just an identifier, look for an assignment.
   return parseSetAssignment();

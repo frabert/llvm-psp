@@ -900,6 +900,22 @@ bool MipsSEDAGToDAGISel::trySelect(SDNode *Node) {
     break;
   }
 
+  case Intrinsic::mips_allegrex_rotl: {
+      SDValue Value  = Node->getOperand(1);
+      SDValue RotAmt = Node->getOperand(2);
+      assert(RotAmt.getOpcode() == ISD::Constant &&
+             "Invalid instruction operand.");
+      auto *CN = cast<ConstantSDNode>(RotAmt);
+      int64_t Imm = CN->getSExtValue();
+      RotAmt = CurDAG->getTargetConstant(32 - Imm, DL, MVT::i32);
+
+      ReplaceNode(Node, CurDAG->getMachineNode(Mips::ROTR, DL,
+                                               MVT::i32,
+                                               Value,
+                                               RotAmt));
+      return true;
+    }
+
   case ISD::INTRINSIC_VOID: {
     const unsigned IntrinsicOpcode =
         cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue();

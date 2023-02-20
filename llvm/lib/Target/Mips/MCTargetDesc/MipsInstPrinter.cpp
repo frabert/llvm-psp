@@ -141,6 +141,143 @@ void MipsInstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   Op.getExpr()->print(O, &MAI, true);
 }
 
+void MipsInstPrinter::printVFPUOperand(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isReg() && "unknown operand kind in printVFPUOperand");
+  O << StringRef(getRegisterName(Op.getReg()));
+}
+
+void MipsInstPrinter::printVFPUConstant(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  static const char *constants[] = {
+    "",
+    "VFPU_HUGE",
+    "VFPU_SQRT2",
+    "VFPU_SQRT1_2",
+    "VFPU_2_SQRTPI",
+    "VFPU_2_PI",
+    "VFPU_1_PI",
+    "VFPU_PI_4",
+    "VFPU_PI_2",
+    "VFPU_PI",
+    "VFPU_E",
+    "VFPU_LOG2E",
+    "VFPU_LOG10E",
+    "VFPU_LN2",
+    "VFPU_LN10",
+    "VFPU_2PI",
+    "VFPU_PI_6",
+    "VFPU_LOG10TWO",
+    "VFPU_LOG2TEN",
+    "VFPU_SQRT3_2"
+  };
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUConstant");
+  assert(Op.getImm() < 20 && "invalid constant id in printVFPUConstant");
+  O << StringRef(constants[Op.getImm()]);
+}
+
+void MipsInstPrinter::printVFPUCondition(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  static const char *constants[] = {
+    "FL", "EQ", "LT", "LE",
+    "TR", "NE", "GE", "GT",
+    "EZ", "EN", "EI", "ES",
+    "NZ", "NN", "NI", "NS"
+  };
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUCondition");
+  assert(Op.getImm() < 16 && "invalid constant id in printVFPUCondition");
+  O << StringRef(constants[Op.getImm()]);
+}
+
+void MipsInstPrinter::printVFPUWriteBack(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  static const char *constants[] = { "WT", "WB" };
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUWriteBack");
+  assert(Op.getImm() < 2 && "invalid constant id in printVFPUWriteBack");
+  O << StringRef(constants[Op.getImm()]);
+}
+
+static void VFPURotation(const char* operands[], int64_t op) {
+  auto negative = (op >> 4) & 1;
+  auto sine = (op >> 2) & 3;
+  auto cosine = (op >> 0) & 3;
+
+  if(sine == cosine) {
+    for(int i = 0; i < 4; i++) {
+      operands[i] = (negative ? "-s" : "s");
+    }
+  } else {
+    operands[sine] = (negative ? "-s" : "s");
+  }
+  operands[cosine] = "c";
+}
+
+void MipsInstPrinter::printVFPUPRotation(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUPRotation");
+  auto i = Op.getImm();
+  const char* operands[] = {
+    "0", "0", "0", "0"
+  };
+  VFPURotation(operands, i);
+  O << '[' << operands[0] << ", " << operands[1] << ']';
+}
+
+void MipsInstPrinter::printVFPUTRotation(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUTRotation");
+  auto i = Op.getImm();
+  const char* operands[] = {
+    "0", "0", "0", "0"
+  };
+  VFPURotation(operands, i);
+  O << '[' << operands[0] << ", " << operands[1] << ", " << operands[2] << ']';
+}
+
+void MipsInstPrinter::printVFPUQRotation(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUQRotation");
+  auto i = Op.getImm();
+  const char* operands[] = {
+    "0", "0", "0", "0"
+  };
+  VFPURotation(operands, i);
+  O << '[' << operands[0] << ", " << operands[1] << ", " << operands[2] << ", " << operands[3] << ']';
+}
+
+void MipsInstPrinter::printVFPUSwizzle(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUSwizzle");
+  assert(Op.getImm() < 32 && "invalid constant id in printVFPUSwizzle");
+  static const char* swizzles[] = {
+    "x", "y", "z", "w", "|x|", "|y|", "|z|", "|w|",
+    "0", "1", "2", "1/2", "3", "1/3", "1/4", "1/6",
+    "-x", "-y", "-z", "-w", "-|x|", "-|y|", "-|z|", "-|w|",
+    "-0", "-1", "-2", "-1/2", "-3", "-1/3", "-1/4", "-1/6",
+  };
+  O << swizzles[Op.getImm()];
+}
+
+void MipsInstPrinter::printVFPUSaturation(const MCInst *MI, unsigned OpNo,
+                                        const MCSubtargetInfo &STI, raw_ostream &O) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "unknown operand kind in printVFPUSaturation");
+  assert(Op.getImm() < 8 && "invalid constant id in printVFPUSaturation");
+  static const char* sats[] = {
+    "", "0:1", "", "-1:1",
+    "", "0:1m", "", "-1:1m"
+  };
+  O << '[' << sats[Op.getImm()] << ']';
+}
+
 void MipsInstPrinter::printJumpOperand(const MCInst *MI, unsigned OpNo,
                                        const MCSubtargetInfo &STI,
                                        raw_ostream &O) {

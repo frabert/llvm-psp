@@ -255,6 +255,10 @@ def HasVirt  : Predicate<"Subtarget->hasVirt()">,
                AssemblerPredicate<(all_of FeatureVirt)>;
 def HasGINV  : Predicate<"Subtarget->hasGINV()">,
                AssemblerPredicate<(all_of FeatureGINV)>;
+def HasAllegrex : Predicate<"Subtarget->hasAllegrex()">,
+                  AssemblerPredicate<(all_of FeatureAllegrex)>;
+def NotInAllegrex : Predicate<"!Subtarget->hasAllegrex()">,
+                  AssemblerPredicate<(all_of (not FeatureAllegrex))>;
 // TODO: Add support for FPOpFusion::Standard
 def AllowFPOpFusion : Predicate<"TM.Options.AllowFPOpFusion =="
                                 " FPOpFusion::Fast">;
@@ -481,6 +485,14 @@ class ASE_VIRT {
 
 class ASE_GINV {
   list <Predicate> ASEPredicate = [HasGINV];
+}
+
+class ASE_ALLEGREX {
+  list <Predicate> ASEPredicate = [HasAllegrex];
+}
+
+class INSN_ALLEGREX {
+  list<Predicate> InsnPredicates = [HasAllegrex];
 }
 
 // Class used for separating microMIPSr6 and microMIPS (r3) instruction.
@@ -2095,9 +2107,9 @@ let AdditionalPredicates = [NotInMicroMips] in {
   // Rotate Instructions
   def ROTR  : MMRel, shift_rotate_imm<"rotr", uimm5, GPR32Opnd, II_ROTR, rotr,
                                       immZExt5>,
-              SRA_FM<2, 1>, ISA_MIPS32R2;
+              SRA_FM<2, 1>, ISA_MIPS32R2, INSN_ALLEGREX;
   def ROTRV : MMRel, shift_rotate_reg<"rotrv", GPR32Opnd, II_ROTRV, rotr>,
-              SRLV_FM<6, 1>, ISA_MIPS32R2;
+              SRLV_FM<6, 1>, ISA_MIPS32R2, INSN_ALLEGREX;
 }
 
 /// Load and Store Instructions
@@ -2122,25 +2134,25 @@ let AdditionalPredicates = [NotInMicroMips] in {
 }
 
 /// load/store left/right
-let AdditionalPredicates = [NotInMicroMips] in {
-def LWL : MMRel, LoadLeftRight<"lwl", MipsLWL, GPR32Opnd, II_LWL>, LW_FM<0x22>,
-          ISA_MIPS1_NOT_32R6_64R6;
-def LWR : MMRel, LoadLeftRight<"lwr", MipsLWR, GPR32Opnd, II_LWR>, LW_FM<0x26>,
-          ISA_MIPS1_NOT_32R6_64R6;
-def SWL : MMRel, StoreLeftRight<"swl", MipsSWL, GPR32Opnd, II_SWL>, LW_FM<0x2a>,
-          ISA_MIPS1_NOT_32R6_64R6;
-def SWR : MMRel, StoreLeftRight<"swr", MipsSWR, GPR32Opnd, II_SWR>, LW_FM<0x2e>,
-          ISA_MIPS1_NOT_32R6_64R6;
+let AdditionalPredicates = [NotInMicroMips, NotInAllegrex] in {
+  def LWL : MMRel, LoadLeftRight<"lwl", MipsLWL, GPR32Opnd, II_LWL>, LW_FM<0x22>,
+            ISA_MIPS1_NOT_32R6_64R6;
+  def LWR : MMRel, LoadLeftRight<"lwr", MipsLWR, GPR32Opnd, II_LWR>, LW_FM<0x26>,
+            ISA_MIPS1_NOT_32R6_64R6;
+  def SWL : MMRel, StoreLeftRight<"swl", MipsSWL, GPR32Opnd, II_SWL>, LW_FM<0x2a>,
+            ISA_MIPS1_NOT_32R6_64R6;
+  def SWR : MMRel, StoreLeftRight<"swr", MipsSWR, GPR32Opnd, II_SWR>, LW_FM<0x2e>,
+            ISA_MIPS1_NOT_32R6_64R6;
 
-// COP2 Memory Instructions
-def LWC2 : StdMMR6Rel, LW_FT2<"lwc2", COP2Opnd, II_LWC2, load>, LW_FM<0x32>,
-           ISA_MIPS1_NOT_32R6_64R6;
-def SWC2 : StdMMR6Rel, SW_FT2<"swc2", COP2Opnd, II_SWC2, store>,
-           LW_FM<0x3a>, ISA_MIPS1_NOT_32R6_64R6;
-def LDC2 : StdMMR6Rel, LW_FT2<"ldc2", COP2Opnd, II_LDC2, load>, LW_FM<0x36>,
-           ISA_MIPS2_NOT_32R6_64R6;
-def SDC2 : StdMMR6Rel, SW_FT2<"sdc2", COP2Opnd, II_SDC2, store>,
-           LW_FM<0x3e>, ISA_MIPS2_NOT_32R6_64R6;
+  // COP2 Memory Instructions
+  def LWC2 : StdMMR6Rel, LW_FT2<"lwc2", COP2Opnd, II_LWC2, load>, LW_FM<0x32>,
+             ISA_MIPS1_NOT_32R6_64R6;
+  def SWC2 : StdMMR6Rel, SW_FT2<"swc2", COP2Opnd, II_SWC2, store>,
+             LW_FM<0x3a>, ISA_MIPS1_NOT_32R6_64R6;
+  def LDC2 : StdMMR6Rel, LW_FT2<"ldc2", COP2Opnd, II_LDC2, load>, LW_FM<0x36>,
+             ISA_MIPS2_NOT_32R6_64R6;
+  def SDC2 : StdMMR6Rel, SW_FT2<"sdc2", COP2Opnd, II_SDC2, store>,
+             LW_FM<0x3e>, ISA_MIPS2_NOT_32R6_64R6;
 
 // COP3 Memory Instructions
 let DecoderNamespace = "COP3_" in {
@@ -2195,7 +2207,7 @@ let AdditionalPredicates = [NotInMicroMips] in {
   def SDBBP : MMRel, SYS_FT<"sdbbp", uimm20, II_SDBBP>, SDBBP_FM,
               ISA_MIPS32_NOT_32R6_64R6;
 
-  def ERET : MMRel, ER_FT<"eret", II_ERET>, ER_FM<0x18, 0x0>, INSN_MIPS3_32;
+  def ERET : MMRel, ER_FT<"eret", II_ERET>, ER_FM<0x18, 0x0>, INSN_MIPS3_32, INSN_ALLEGREX;
   def ERETNC : MMRel, ER_FT<"eretnc", II_ERETNC>, ER_FM<0x18, 0x1>,
                ISA_MIPS32R5;
   def DERET : MMRel, ER_FT<"deret", II_DERET>, ER_FM<0x1f, 0x0>, ISA_MIPS32;
@@ -2355,19 +2367,19 @@ let AdditionalPredicates = [NotInMicroMips] in {
 
   /// Sign Ext In Register Instructions.
   def SEB : MMRel, StdMMR6Rel, SignExtInReg<"seb", i8, GPR32Opnd, II_SEB>,
-            SEB_FM<0x10, 0x20>, ISA_MIPS32R2;
+            SEB_FM<0x10, 0x20>, ISA_MIPS32R2, INSN_ALLEGREX;
   def SEH : MMRel, StdMMR6Rel, SignExtInReg<"seh", i16, GPR32Opnd, II_SEH>,
-            SEB_FM<0x18, 0x20>, ISA_MIPS32R2;
+            SEB_FM<0x18, 0x20>, ISA_MIPS32R2, INSN_ALLEGREX;
 
   /// Count Leading
   def CLZ : MMRel, CountLeading0<"clz", GPR32Opnd, II_CLZ>, CLO_FM<0x20>,
-            ISA_MIPS32_NOT_32R6_64R6;
+            ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
   def CLO : MMRel, CountLeading1<"clo", GPR32Opnd, II_CLO>, CLO_FM<0x21>,
-            ISA_MIPS32_NOT_32R6_64R6;
+            ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
 
   /// Word Swap Bytes Within Halfwords
-  def WSBH : MMRel, SubwordSwap<"wsbh", GPR32Opnd, II_WSBH>, SEB_FM<2, 0x20>,
-             ISA_MIPS32R2;
+  def WSBH : MMRel, SubwordSwap<"wsbh", GPR32Opnd, II_WSBH>,
+             SEB_FM<2, 0x20>, ISA_MIPS32R2, INSN_ALLEGREX;
 
   /// No operation.
   def NOP : PseudoSE<(outs), (ins), []>,
@@ -2383,13 +2395,13 @@ let AdditionalPredicates = [NotInMicroMips] in {
 
   // MADD*/MSUB*
   def MADD  : MMRel, MArithR<"madd", II_MADD, 1>, MULT_FM<0x1c, 0>,
-              ISA_MIPS32_NOT_32R6_64R6;
+              ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
   def MADDU : MMRel, MArithR<"maddu", II_MADDU, 1>, MULT_FM<0x1c, 1>,
-              ISA_MIPS32_NOT_32R6_64R6;
+              ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
   def MSUB  : MMRel, MArithR<"msub", II_MSUB>, MULT_FM<0x1c, 4>,
-              ISA_MIPS32_NOT_32R6_64R6;
+              ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
   def MSUBU : MMRel, MArithR<"msubu", II_MSUBU>, MULT_FM<0x1c, 5>,
-              ISA_MIPS32_NOT_32R6_64R6;
+              ISA_MIPS32_NOT_32R6_64R6, INSN_ALLEGREX;
 }
 
 let AdditionalPredicates = [NotDSP] in {
@@ -2419,11 +2431,11 @@ let AdditionalPredicates = [NotInMicroMips] in {
   // TODO: Add '0 < pos+size <= 32' constraint check to ext instruction
   def EXT : MMRel, StdMMR6Rel, ExtBase<"ext", GPR32Opnd, uimm5, uimm5_plus1,
                                        immZExt5, immZExt5Plus1, MipsExt>,
-            EXT_FM<0>, ISA_MIPS32R2;
+            EXT_FM<0>, ISA_MIPS32R2, INSN_ALLEGREX;
   def INS : MMRel, StdMMR6Rel, InsBase<"ins", GPR32Opnd, uimm5,
                                        uimm5_inssize_plus1, immZExt5,
                                        immZExt5Plus1>,
-            EXT_FM<4>, ISA_MIPS32R2;
+            EXT_FM<4>, ISA_MIPS32R2, INSN_ALLEGREX;
 }
 /// Move Control Registers From/To CPU Registers
 let AdditionalPredicates = [NotInMicroMips] in {
@@ -3410,3 +3422,7 @@ include "MicroMips32r6InstrInfo.td"
 // Micromips DSP
 include "MicroMipsDSPInstrFormats.td"
 include "MicroMipsDSPInstrInfo.td"
+
+// Allegrex
+include "MipsAllegrexInstrFormats.td"
+include "MipsAllegrexInstrInfo.td"

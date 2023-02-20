@@ -97,6 +97,24 @@ public:
 private:
   void printOperand(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
                     raw_ostream &O);
+  void printVFPUOperand(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUConstant(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUCondition(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUWriteBack(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUPRotation(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUTRotation(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUQRotation(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUSwizzle(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
+  void printVFPUSaturation(const MCInst *MI, unsigned OpNo, const MCSubtargetInfo &STI,
+                     raw_ostream &O);
   void printJumpOperand(const MCInst *MI, unsigned OpNo,
                         const MCSubtargetInfo &STI, raw_ostream &O);
   void printBranchOperand(const MCInst *MI, uint64_t Address, unsigned OpNo,
