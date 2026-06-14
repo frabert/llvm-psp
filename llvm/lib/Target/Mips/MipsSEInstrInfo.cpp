@@ -243,6 +243,9 @@ void MipsSEInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     Opc = Mips::VMOV_T;
   else if (Mips::VFPUQRegClass.contains(DestReg, SrcReg))
     Opc = Mips::VMOV_Q;
+  // VFPU matrix copies use vmmov of the matching shape.
+  else if (Mips::VFPUM4RegClass.contains(DestReg, SrcReg))
+    Opc = Mips::VMMOV_Q;
 
   // FCMP + FSEL for MIPSr6 may emit
   // $d0_64 = COPY killed renamable $f0

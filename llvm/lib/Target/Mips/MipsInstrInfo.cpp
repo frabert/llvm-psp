@@ -310,6 +310,11 @@ bool MipsInstrInfo::isBranchOffsetInRange(unsigned BranchOpc,
   case Mips::BC1FL:
   case Mips::BC1T:
   case Mips::BC1TL:
+  // Allegrex VFPU condition-code branches (16-bit offset, like BC1T/BC1F).
+  case Mips::BVF:
+  case Mips::BVT:
+  case Mips::BVFL:
+  case Mips::BVTL:
   case Mips::BEQ:     case Mips::BEQ64:
   case Mips::BEQL:
   case Mips::BGEZ:    case Mips::BGEZ64:

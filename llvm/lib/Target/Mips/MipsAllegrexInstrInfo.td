@@ -19,6 +19,8 @@ defm VMAX  : VFPU_A_SPTQ_FMT<0x6d800000, "vmax" , fmaximum, 1, 1, 1, 1>;
 defm VSCMP : VFPU_A_SPTQ_FMT<0x6e800000, "vscmp", null_frag, 1, 1, 1, 1>;
 defm VSGE  : VFPU_A_SPTQ_FMT<0x6f000000, "vsge" , null_frag, 1, 1, 1, 1>;
 defm VSLT  : VFPU_A_SPTQ_FMT<0x6f800000, "vslt" , null_frag, 1, 1, 1, 1>;
+// vqmul's destination must not overlap a source (see the matrix-transform note).
+let Constraints = "@earlyclobber $rd" in
 defm VQMUL : VFPU_A_SPTQ_FMT<0xf2800000, "vqmul", null_frag, 0, 0, 0, 1>;
 defm VSBN  : VFPU_A_SPTQ_FMT<0x61000000, "vsbn" , null_frag, 1, 0, 0, 0>;
 defm VSCL  : VFPU_A_SPTQ_FMT<0x65000000, "vscl" , null_frag, 0, 1, 1, 1,
@@ -35,6 +37,12 @@ defm VMSCL : VFPU_A_SPTQ_FMT<0xf2000000, "vmscl", null_frag, 0, 1, 1, 1,
                              MatrixOperands, MatrixOperands, ScalarOperands>;
 defm VMMUL : VFPU_A_SPTQ_FMT<0xf0000000, "vmmul", null_frag, 0, 1, 1, 1,
                              MatrixOperands, IMatrixOperands, MatrixOperands>;
+// The (homogeneous) matrix-transform ops read the source matrix column-by-column
+// while writing the result, so the hardware forbids the destination from
+// overlapping any source register (the reference assembler rejects it as a
+// "destination register conflict"). Mark the destination earlyclobber so the
+// register allocator never aliases it with a source.
+let Constraints = "@earlyclobber $rd" in {
 def VHTFM2_P : VFPU_A_FMT<0xf0800000, 0,
                           (outs VFPUPOpnd:$rd),
                           (ins VFPUPOpnd:$rt, VFPUM2Opnd:$rs),
@@ -59,6 +67,7 @@ def VTFM4_Q : VFPU_A_FMT<0xf1800000, 3,
                          (outs VFPUQOpnd:$rd),
                          (ins VFPUQOpnd:$rt, VFPUM4Opnd:$rs),
                          "vtfm4.q", []>, INSN_ALLEGREX;
+}
 
 defm VABS   : VFPU_B_SPTQ_FMT<0xd0010000, "vabs"  , fabs, 1, 1, 1, 1>;
 defm VNEG   : VFPU_B_SPTQ_FMT<0xd0020000, "vneg"  , fneg, 1, 1, 1, 1>;
@@ -209,25 +218,29 @@ def VCMP_P : VCMP_SPTQ_FMT<"vcmp.p", 1, VFPUPOpnd>, INSN_ALLEGREX;
 def VCMP_T : VCMP_SPTQ_FMT<"vcmp.t", 2, VFPUTOpnd>, INSN_ALLEGREX;
 def VCMP_Q : VCMP_SPTQ_FMT<"vcmp.q", 3, VFPUQOpnd>, INSN_ALLEGREX;
 
+// These short forms are parse-only conveniences (Emit=0): the reference
+// assembler only accepts the omitted-operand spelling for FL/TR, so printing
+// them for an arbitrary condition (when rs/rt happen to be C000) produces
+// assembly pspdev's binutils rejects. Always print the canonical 3-operand form.
 def : MipsInstAlias<"vcmp.s\t$cmp, $rs",
-  (VCMP_S VFPUConditionOpnd:$cmp, VFPUSOpnd:$rs, S000)>, INSN_ALLEGREX;
+  (VCMP_S VFPUConditionOpnd:$cmp, VFPUSOpnd:$rs, S000), 0>, INSN_ALLEGREX;
 def : MipsInstAlias<"vcmp.s\t$cmp",
-  (VCMP_S VFPUConditionOpnd:$cmp, S000, S000)>, INSN_ALLEGREX;
+  (VCMP_S VFPUConditionOpnd:$cmp, S000, S000), 0>, INSN_ALLEGREX;
 
 def : MipsInstAlias<"vcmp.p\t$cmp, $rs",
-  (VCMP_P VFPUConditionOpnd:$cmp, VFPUPOpnd:$rs, C000_P)>, INSN_ALLEGREX;
+  (VCMP_P VFPUConditionOpnd:$cmp, VFPUPOpnd:$rs, C000_P), 0>, INSN_ALLEGREX;
 def : MipsInstAlias<"vcmp.p\t$cmp",
-  (VCMP_P VFPUConditionOpnd:$cmp, C000_P, C000_P)>, INSN_ALLEGREX;
+  (VCMP_P VFPUConditionOpnd:$cmp, C000_P, C000_P), 0>, INSN_ALLEGREX;
 
 def : MipsInstAlias<"vcmp.t\t$cmp, $rs",
-  (VCMP_T VFPUConditionOpnd:$cmp, VFPUTOpnd:$rs, C000_T)>, INSN_ALLEGREX;
+  (VCMP_T VFPUConditionOpnd:$cmp, VFPUTOpnd:$rs, C000_T), 0>, INSN_ALLEGREX;
 def : MipsInstAlias<"vcmp.t\t$cmp",
-  (VCMP_T VFPUConditionOpnd:$cmp, C000_T, C000_T)>, INSN_ALLEGREX;
+  (VCMP_T VFPUConditionOpnd:$cmp, C000_T, C000_T), 0>, INSN_ALLEGREX;
 
 def : MipsInstAlias<"vcmp.q\t$cmp, $rs",
-  (VCMP_Q VFPUConditionOpnd:$cmp, VFPUQOpnd:$rs, C000_Q)>, INSN_ALLEGREX;
+  (VCMP_Q VFPUConditionOpnd:$cmp, VFPUQOpnd:$rs, C000_Q), 0>, INSN_ALLEGREX;
 def : MipsInstAlias<"vcmp.q\t$cmp",
-  (VCMP_Q VFPUConditionOpnd:$cmp, C000_Q, C000_Q)>, INSN_ALLEGREX;
+  (VCMP_Q VFPUConditionOpnd:$cmp, C000_Q, C000_Q), 0>, INSN_ALLEGREX;
 
 // Like 'store', but always requires vector size alignment.
 def alignedstore : PatFrag<(ops node:$val, node:$ptr),
@@ -408,6 +421,12 @@ defm : VFPUUnaryIntrPat<int_mips_allegrex_vsat0, "VSAT0">;
 defm : VFPUUnaryIntrPat<int_mips_allegrex_vsat1, "VSAT1">;
 defm : VFPUUnaryIntrPat<int_mips_allegrex_vsgn,  "VSGN">;
 defm : VFPUUnaryIntrPat<int_mips_allegrex_vocp,  "VOCP">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vrcp,  "VRCP">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vrsq,  "VRSQ">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vasin, "VASIN">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vnrcp, "VNRCP">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vnsin, "VNSIN">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vrexp2,"VREXP2">;
 
 // Unary lane shuffles with hardware-restricted widths. vbfy1 is .p/.q; vbfy2
 // and vsrt1-4 are .q only, so they get explicit per-width patterns rather than
@@ -470,6 +489,7 @@ multiclass VFPUCmpIntrPat<Intrinsic Op, string Inst> {
 }
 defm : VFPUCmpIntrPat<int_mips_allegrex_vsge, "VSGE">;
 defm : VFPUCmpIntrPat<int_mips_allegrex_vslt, "VSLT">;
+defm : VFPUCmpIntrPat<int_mips_allegrex_vscmp, "VSCMP">;
 
 // Single-width 3D specials.
 def : MipsPat<(v4f32 (int_mips_allegrex_vqmul (v4f32 VFPUQOpnd:$rs), (v4f32 VFPUQOpnd:$rt))),
@@ -478,6 +498,76 @@ def : MipsPat<(v3f32 (int_mips_allegrex_vcrs (v3f32 VFPUTOpnd:$rs), (v3f32 VFPUT
               (VCRS_T VFPUTOpnd:$rs, VFPUTOpnd:$rt)>;
 def : MipsPat<(f32 (int_mips_allegrex_vdet (v2f32 VFPUPOpnd:$rs), (v2f32 VFPUPOpnd:$rt))),
               (VDET_P VFPUPOpnd:$rs, VFPUPOpnd:$rt)>;
+
+// ---- 4x4 VFPU matrices (v16f32, the VFPUM4 register file) ----
+// A matrix's four columns are its sub_vfpuq_* subregisters; load/store and
+// build go through these column copies.
+def : MipsPat<(v4f32 (extract_subvector (v16f32 VFPUM4Opnd:$m), (i32 0))),
+              (EXTRACT_SUBREG VFPUM4Opnd:$m, sub_vfpuq_1)>;
+def : MipsPat<(v4f32 (extract_subvector (v16f32 VFPUM4Opnd:$m), (i32 4))),
+              (EXTRACT_SUBREG VFPUM4Opnd:$m, sub_vfpuq_2)>;
+def : MipsPat<(v4f32 (extract_subvector (v16f32 VFPUM4Opnd:$m), (i32 8))),
+              (EXTRACT_SUBREG VFPUM4Opnd:$m, sub_vfpuq_3)>;
+def : MipsPat<(v4f32 (extract_subvector (v16f32 VFPUM4Opnd:$m), (i32 12))),
+              (EXTRACT_SUBREG VFPUM4Opnd:$m, sub_vfpuq_4)>;
+def : MipsPat<(v16f32 (insert_subvector (v16f32 VFPUM4Opnd:$m),
+                                        (v4f32 VFPUQOpnd:$c), (i32 0))),
+              (INSERT_SUBREG VFPUM4Opnd:$m, VFPUQOpnd:$c, sub_vfpuq_1)>;
+def : MipsPat<(v16f32 (insert_subvector (v16f32 VFPUM4Opnd:$m),
+                                        (v4f32 VFPUQOpnd:$c), (i32 4))),
+              (INSERT_SUBREG VFPUM4Opnd:$m, VFPUQOpnd:$c, sub_vfpuq_2)>;
+def : MipsPat<(v16f32 (insert_subvector (v16f32 VFPUM4Opnd:$m),
+                                        (v4f32 VFPUQOpnd:$c), (i32 8))),
+              (INSERT_SUBREG VFPUM4Opnd:$m, VFPUQOpnd:$c, sub_vfpuq_3)>;
+def : MipsPat<(v16f32 (insert_subvector (v16f32 VFPUM4Opnd:$m),
+                                        (v4f32 VFPUQOpnd:$c), (i32 12))),
+              (INSERT_SUBREG VFPUM4Opnd:$m, VFPUQOpnd:$c, sub_vfpuq_4)>;
+
+// Constant-matrix generators (no inputs) and matrix move/scale/transform.
+def : MipsPat<(v16f32 (int_mips_allegrex_vmzero_q)), (VMZERO_Q)>;
+def : MipsPat<(v16f32 (int_mips_allegrex_vmone_q)),  (VMONE_Q)>;
+def : MipsPat<(v16f32 (int_mips_allegrex_vmidt_q)),  (VMIDT_Q)>;
+def : MipsPat<(v16f32 (int_mips_allegrex_vmmov_q (v16f32 VFPUM4Opnd:$rs))),
+              (VMMOV_Q VFPUM4Opnd:$rs)>;
+def : MipsPat<(v16f32 (int_mips_allegrex_vmscl_q (v16f32 VFPUM4Opnd:$rs),
+                                                 (f32 VFPUSOpnd:$rt))),
+              (VMSCL_Q VFPUM4Opnd:$rs, VFPUSOpnd:$rt)>;
+// vtfm4/vhtfm4 transform a 4-vector by a matrix; the instruction takes the
+// vector ($rt) then the matrix ($rs) in its operand list.
+def : MipsPat<(v4f32 (int_mips_allegrex_vtfm4 (v16f32 VFPUM4Opnd:$rs),
+                                              (v4f32 VFPUQOpnd:$rt))),
+              (VTFM4_Q VFPUQOpnd:$rt, VFPUM4Opnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vhtfm4 (v16f32 VFPUM4Opnd:$rs),
+                                               (v4f32 VFPUQOpnd:$rt))),
+              (VHTFM4_Q VFPUQOpnd:$rt, VFPUM4Opnd:$rs)>;
+
+// ---- Odd-signature unary/auxiliary ops ----
+def : MipsPat<(f32 (int_mips_allegrex_vsbn (f32 VFPUSOpnd:$rs),
+                                           (f32 VFPUSOpnd:$rt))),
+              (VSBN_S VFPUSOpnd:$rs, VFPUSOpnd:$rt)>;
+def : MipsPat<(f32 (int_mips_allegrex_vsbz (f32 VFPUSOpnd:$rs))),
+              (VSBZ_S VFPUSOpnd:$rs)>;
+def : MipsPat<(f32 (int_mips_allegrex_vlgb (f32 VFPUSOpnd:$rs))),
+              (VLGB_S VFPUSOpnd:$rs)>;
+// Width-expanding one's-complement: s->pair, pair->quad.
+def : MipsPat<(v2f32 (int_mips_allegrex_vsocp_s (f32 VFPUSOpnd:$rs))),
+              (VSOCP_S VFPUSOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vsocp_p (v2f32 VFPUPOpnd:$rs))),
+              (VSOCP_P VFPUPOpnd:$rs)>;
+
+// Read the VFPU condition codes (control register 131, "VFPU_CC") into a GPR.
+// Codegen-only form of mfvc with the control register fixed; it consumes the
+// implicit VFPUCC written by the preceding vcmp.
+let Uses = [VFPUCC], isCodeGenOnly = 1 in
+def ReadVFPUCC : InstSE<(outs GPR32Opnd:$rt), (ins),
+    "mfvc\t$rt, $$131", [(set GPR32Opnd:$rt, (i32 (MipsVfpuMfvc)))],
+    II_ALLEGREX, FrmVFPU>, INSN_ALLEGREX {
+  bits<5> rt;
+  let Inst{31-21} = 0b01001000011;
+  let Inst{20-16} = rt;
+  let Inst{15-8}  = 0b00000000;
+  let Inst{7-0}   = 131;
+}
 
 } // Predicates = [HasAllegrex]
 
@@ -601,6 +691,19 @@ def BVT  : VFPU_BRANCH_FMT<0x49010000, "bvt">, INSN_ALLEGREX;
 def BVFL : VFPU_BRANCH_FMT<0x49020000, "bvfl">, INSN_ALLEGREX;
 def BVTL : VFPU_BRANCH_FMT<0x49030000, "bvtl">, INSN_ALLEGREX;
 
+// Branch on a VFPU condition-code bit: VfpuBrcond(sense, bit, target). sense==1
+// selects bvt (branch when the bit is set), sense==0 selects bvf. The bit index
+// rides the node as i32 but the bvt/bvf encoding field is i8, so narrow it.
+def vfpu_cc_bit : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getZExtValue() & 7, SDLoc(N), MVT::i8);
+}]>;
+let Predicates = [HasAllegrex] in {
+def : Pat<(MipsVfpuBrcond (i32 1), imm:$bit, bb:$tgt),
+          (BVT (vfpu_cc_bit imm:$bit), bb:$tgt)>;
+def : Pat<(MipsVfpuBrcond (i32 0), imm:$bit, bb:$tgt),
+          (BVF (vfpu_cc_bit imm:$bit), bb:$tgt)>;
+}
+
 let shamt = 0b10100 in {
   let rs = 0b00000 in {
     def BITREV_V : FR<0b011111, 0b100000,
@@ -638,12 +741,26 @@ def SDL_V:
   let Inst{20-0}  = addr;
 }
 
+// vrot reads the angle scalar while writing every lane, so the destination must
+// not overlap the source (the reference assembler rejects the conflict).
+let Constraints = "@earlyclobber $rd" in {
 def VROT_P : VROT_FMT<0xf3a00080, "vrot.p", VFPUPOpnd, VFPUPRotationOpnd>,
              INSN_ALLEGREX;
 def VROT_T : VROT_FMT<0xf3a08000, "vrot.t", VFPUTOpnd, VFPUTRotationOpnd>,
              INSN_ALLEGREX;
 def VROT_Q : VROT_FMT<0xf3a08080, "vrot.q", VFPUQOpnd, VFPUQRotationOpnd>,
              INSN_ALLEGREX;
+}
+
+// vrot: angle in a scalar register, rotation pattern as an immediate selector.
+let Predicates = [HasAllegrex] in {
+def : MipsPat<(v2f32 (int_mips_allegrex_vrot_p (f32 VFPUSOpnd:$rs), timm:$rot)),
+              (VROT_P VFPUSOpnd:$rs, timm:$rot)>;
+def : MipsPat<(v3f32 (int_mips_allegrex_vrot_t (f32 VFPUSOpnd:$rs), timm:$rot)),
+              (VROT_T VFPUSOpnd:$rs, timm:$rot)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vrot_q (f32 VFPUSOpnd:$rs), timm:$rot)),
+              (VROT_Q VFPUSOpnd:$rs, timm:$rot)>;
+}
 
 def VPFXS : VPFXST_FMT<0xdc000000, "vpfxs">, INSN_ALLEGREX;
 def VPFXT : VPFXST_FMT<0xdd000000, "vpfxt">, INSN_ALLEGREX;

@@ -12,6 +12,29 @@
 
 def II_ALLEGREX : InstrItinClass;
 
+// The VFPU condition codes (VFPU control register 131, "VFPU_CC"). vcmp writes
+// it implicitly; bvt/bvf and mfvc read it. Modelled as a single unallocatable
+// physical register so the scheduler/regalloc keep the compare adjacent to its
+// reader, mirroring how the scalar FPU uses FCC0 for c.cond.s / bc1t.
+def VFPUCC : MipsReg<131, "vfpu_cc">;
+def VFPUCCReg : RegisterClass<"Mips", [i32], 32, (add VFPUCC)>, Unallocatable;
+
+// VFPU compare/branch SDAG nodes, modelled on the scalar FPU's FPCmp/FPBrcond.
+// vcmp.{s,p,t,q} writes the VFPU condition codes (implicit VFPUCC register);
+// the result is read back into a GPR with mfvc (VfpuMfvc), or consumed directly
+// by a bvt/bvf branch (VfpuBrcond). The compare is tied to its reader with glue
+// so nothing clobbers the condition codes in between.
+def SDT_MipsVfpuCmp : SDTypeProfile<0, 3, [SDTCisSameAs<1, 0>, SDTCisVT<2, i32>]>;
+def MipsVfpuCmp : SDNode<"MipsISD::VfpuCmp", SDT_MipsVfpuCmp, [SDNPOutGlue]>;
+
+def SDT_MipsVfpuMfvc : SDTypeProfile<1, 0, [SDTCisVT<0, i32>]>;
+def MipsVfpuMfvc : SDNode<"MipsISD::VfpuMfvc", SDT_MipsVfpuMfvc, [SDNPInGlue]>;
+
+def SDT_MipsVfpuBrcond : SDTypeProfile<0, 3, [SDTCisVT<0, i32>, SDTCisVT<1, i32>,
+                                             SDTCisVT<2, OtherVT>]>;
+def MipsVfpuBrcond : SDNode<"MipsISD::VfpuBrcond", SDT_MipsVfpuBrcond,
+                            [SDNPHasChain, SDNPOptInGlue]>;
+
 def VFPUConstantAsmOpnd : AsmOperandClass {
   let Name = "VFPUConstant";
   let PredicateMethod = "isVFPUConstant";
@@ -262,8 +285,11 @@ def VFPUConditionOpnd : Operand<i32> {
 
 class VCMP_SPTQ_FMT<string name, bits<2> size, DAGOperand opnd>
   : InstSE<(outs), (ins VFPUConditionOpnd:$cmp, opnd:$rs, opnd:$rt),
-    !strconcat(name, "\t$cmp, $rs, $rt"), [], II_ALLEGREX, FrmI>
+    !strconcat(name, "\t$cmp, $rs, $rt"),
+    [(MipsVfpuCmp opnd:$rs, opnd:$rt, timm:$cmp)], II_ALLEGREX, FrmI>
 {
+  // Writes the implicit VFPU condition codes; tied to its reader by glue.
+  let Defs = [VFPUCC];
   string Name = name;
   bits<4> cmp;
   bits<7> rs;
@@ -472,6 +498,8 @@ class VFPU_BRANCH_FMT<bits<32> instr, string name> :
   let isBranch = 1;
   let isTerminator = 1;
   let hasDelaySlot = 1;
+  // Reads the implicit VFPU condition codes written by vcmp.
+  let Uses = [VFPUCC];
   bit isCTI = 1;
 
   bits<3> op;

@@ -924,4 +924,20 @@ BUILTIN(__builtin_allegrex_floor_w_s, "if", "nc")
 BUILTIN(__builtin_allegrex_round_w_s, "if", "nc")
 BUILTIN(__builtin_allegrex_trunc_w_s, "if", "nc")
 
+// VFPU matrix ops. Matrices are column-major <16 x float> (V16f).
+BUILTIN(__builtin_allegrex_vmzero_q, "V16f", "nc")
+BUILTIN(__builtin_allegrex_vmone_q, "V16f", "nc")
+BUILTIN(__builtin_allegrex_vmidt_q, "V16f", "nc")
+BUILTIN(__builtin_allegrex_vmmov_q, "V16fV16f", "nc")
+BUILTIN(__builtin_allegrex_vmscl_q, "V16fV16ff", "nc")
+BUILTIN(__builtin_allegrex_vtfm4, "V4fV16fV4f", "nc")
+BUILTIN(__builtin_allegrex_vhtfm4, "V4fV16fV4f", "nc")
+
+// VFPU scalar / width-changing helpers.
+BUILTIN(__builtin_allegrex_vsbn, "fff", "nc")
+BUILTIN(__builtin_allegrex_vsbz, "ff", "nc")
+BUILTIN(__builtin_allegrex_vlgb, "ff", "nc")
+BUILTIN(__builtin_allegrex_vsocp_s, "V2ff", "nc")
+BUILTIN(__builtin_allegrex_vsocp_p, "V4fV2f", "nc")
+
 #undef BUILTIN

@@ -68,6 +68,8 @@ define float @fad_q(ptr %a) {
 }
 
 declare <4 x float> @llvm.mips.allegrex.vsge.v4f32(<4 x float>, <4 x float>)
+declare <4 x float> @llvm.mips.allegrex.vscmp.v4f32(<4 x float>, <4 x float>)
+declare <3 x float> @llvm.mips.allegrex.vscmp.v3f32(<3 x float>, <3 x float>)
 declare <4 x float> @llvm.mips.allegrex.vqmul.v4f32(<4 x float>, <4 x float>)
 declare float @llvm.mips.allegrex.vdet.v2f32(<2 x float>, <2 x float>)
 
@@ -78,6 +80,26 @@ define void @sge_q(ptr %a, ptr %b, ptr %r) {
   %y = load <4 x float>, ptr %b, align 16
   %z = call <4 x float> @llvm.mips.allegrex.vsge.v4f32(<4 x float> %x, <4 x float> %y)
   store <4 x float> %z, ptr %r, align 16
+  ret void
+}
+
+define void @scmp_q(ptr %a, ptr %b, ptr %r) {
+; CHECK-LABEL: scmp_q:
+; CHECK: vscmp.q {{C[0-9]+}}, {{C[0-9]+}}, {{C[0-9]+}}
+  %x = load <4 x float>, ptr %a, align 16
+  %y = load <4 x float>, ptr %b, align 16
+  %z = call <4 x float> @llvm.mips.allegrex.vscmp.v4f32(<4 x float> %x, <4 x float> %y)
+  store <4 x float> %z, ptr %r, align 16
+  ret void
+}
+
+define void @scmp_t(ptr %a, ptr %b, ptr %r) {
+; CHECK-LABEL: scmp_t:
+; CHECK: vscmp.t {{C[0-9]+}}, {{C[0-9]+}}, {{C[0-9]+}}
+  %x = load <3 x float>, ptr %a, align 16
+  %y = load <3 x float>, ptr %b, align 16
+  %z = call <3 x float> @llvm.mips.allegrex.vscmp.v3f32(<3 x float> %x, <3 x float> %y)
+  store <3 x float> %z, ptr %r, align 16
   ret void
 }
 

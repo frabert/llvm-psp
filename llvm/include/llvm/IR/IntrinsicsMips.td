@@ -1843,6 +1843,21 @@ def int_mips_allegrex_vsgn :
 def int_mips_allegrex_vocp :
   Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
 
+// Unary same-width fast approximations: reciprocal, reciprocal-sqrt, arcsine,
+// and their "negated" companions (vnrcp/vnsin/vrexp2). Float -> float.
+def int_mips_allegrex_vrcp :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vrsq :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vasin :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vnrcp :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vnsin :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vrexp2 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+
 // Unary same-width lane shuffles (butterfly / sort). Float -> float; the backend
 // pattern restricts each to the widths the hardware supports (vbfy1: .p/.q,
 // vbfy2 and vsrt1-4: .q only).
@@ -1881,6 +1896,19 @@ def int_mips_allegrex_vsge :
 def int_mips_allegrex_vslt :
   Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
 
+// Lane-wise signed compare producing a -1.0/0.0/1.0 result vector: vscmp.
+def int_mips_allegrex_vscmp :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
+
+// vcmp.{p,t,q}: lane-wise compare writing the VFPU condition codes. The first
+// (immediate) argument selects the condition (0..15, matching the assembler
+// FL/EQ/LT/.../NS table). Returns the condition-code word read back from the
+// VFPU control register: bits 0..N-1 are the per-lane results, bit 4 is "any
+// lane", bit 5 is "all lanes". Branching on a single bit folds to bvt/bvf.
+def int_mips_allegrex_vcmp :
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_anyvector_ty, LLVMMatchType<0>],
+            [IntrNoMem, ImmArg<ArgIndex<0>>]>;
+
 // 3D-math specials (single width each; the backend pattern restricts the type):
 //   vqmul (quaternion mul, .q), vcrs (cross product, .t), vdet (2x2 det, .p).
 def int_mips_allegrex_vqmul :
@@ -1889,4 +1917,54 @@ def int_mips_allegrex_vcrs :
   Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
 def int_mips_allegrex_vdet :
   Intrinsic<[llvm_float_ty], [llvm_anyvector_ty, LLVMMatchType<0>], [IntrNoMem]>;
+
+// 4x4 VFPU matrix ops. Matrices are column-major v16f32 (the VFPUM4 register
+// file). These are non-overloaded per shape: a matrix value type can't use
+// LLVMMatchType the way the vector ops do, so each shape gets its own intrinsic.
+//   vmzero/vmone/vmidt: constant-matrix generators (no inputs).
+//   vmmov: matrix copy.  vmscl: matrix * scalar.
+//   vtfm4/vhtfm4: matrix * (homogeneous) 4-vector -> 4-vector.
+//   vmmul: matrix * matrix.
+def int_mips_allegrex_vmzero_q : ClangBuiltin<"__builtin_allegrex_vmzero_q">,
+  Intrinsic<[llvm_v16f32_ty], [], [IntrNoMem]>;
+def int_mips_allegrex_vmone_q : ClangBuiltin<"__builtin_allegrex_vmone_q">,
+  Intrinsic<[llvm_v16f32_ty], [], [IntrNoMem]>;
+def int_mips_allegrex_vmidt_q : ClangBuiltin<"__builtin_allegrex_vmidt_q">,
+  Intrinsic<[llvm_v16f32_ty], [], [IntrNoMem]>;
+def int_mips_allegrex_vmmov_q : ClangBuiltin<"__builtin_allegrex_vmmov_q">,
+  Intrinsic<[llvm_v16f32_ty], [llvm_v16f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vmscl_q : ClangBuiltin<"__builtin_allegrex_vmscl_q">,
+  Intrinsic<[llvm_v16f32_ty], [llvm_v16f32_ty, llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vtfm4 : ClangBuiltin<"__builtin_allegrex_vtfm4">,
+  Intrinsic<[llvm_v4f32_ty], [llvm_v16f32_ty, llvm_v4f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vhtfm4 : ClangBuiltin<"__builtin_allegrex_vhtfm4">,
+  Intrinsic<[llvm_v4f32_ty], [llvm_v16f32_ty, llvm_v4f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vmmul_q :
+  Intrinsic<[llvm_v16f32_ty], [llvm_v16f32_ty, llvm_v16f32_ty], [IntrNoMem]>;
+
+// Odd-signature VFPU ops that don't fit the same-width unary multiclass.
+//   vsbn: scale a scalar by 2^n (the exponent rides in a second f32 register).
+//   vsbz / vlgb: scalar-only auxiliary functions.
+//   vsocp: width-expanding one's-complement (s->pair, pair->quad).
+//   vrot: build a 2/3/4-lane rotation vector from an angle and a selector
+//   immediate (the selector matches the assembler's rotation encoding).
+def int_mips_allegrex_vsbn : ClangBuiltin<"__builtin_allegrex_vsbn">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty, llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vsbz : ClangBuiltin<"__builtin_allegrex_vsbz">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vlgb : ClangBuiltin<"__builtin_allegrex_vlgb">,
+  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vsocp_s : ClangBuiltin<"__builtin_allegrex_vsocp_s">,
+  Intrinsic<[llvm_v2f32_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vsocp_p : ClangBuiltin<"__builtin_allegrex_vsocp_p">,
+  Intrinsic<[llvm_v4f32_ty], [llvm_v2f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vrot_p :
+  Intrinsic<[llvm_v2f32_ty], [llvm_float_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vrot_t :
+  Intrinsic<[llvm_v3f32_ty], [llvm_float_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vrot_q :
+  Intrinsic<[llvm_v4f32_ty], [llvm_float_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
 }

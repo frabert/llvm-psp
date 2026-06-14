@@ -258,6 +258,26 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
       setOperationAction(ISD::LOAD, VT, Custom);
       setOperationAction(ISD::STORE, VT, Custom);
     }
+
+    // 4x4 VFPU matrices (v16f32) live in the VFPUM4 register file as four v4f32
+    // columns. Memory traffic goes column-by-column through lv.q/sv.q, so
+    // load/store are custom-lowered and the column extract/insert select to
+    // sub_vfpuq_* subregister copies.
+    addRegisterClass(MVT::v16f32, &Mips::VFPUM4RegClass);
+    setOperationAction(ISD::LOAD, MVT::v16f32, Custom);
+    setOperationAction(ISD::STORE, MVT::v16f32, Custom);
+    // EXTRACT_SUBVECTOR is keyed on its result type (the v4f32 column);
+    // INSERT_SUBVECTOR on its result type (the v16f32 matrix).
+    setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4f32, Legal);
+    setOperationAction(ISD::INSERT_SUBVECTOR, MVT::v16f32, Legal);
+    // A matrix assembled from scalars (e.g. a by-value matrix argument) builds
+    // each v4f32 column then inserts it as a subvector.
+    setOperationAction(ISD::BUILD_VECTOR, MVT::v16f32, Custom);
+    setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v16f32, Expand);
+    setOperationAction(ISD::CONCAT_VECTORS, MVT::v16f32, Expand);
+
+    // Fold a branch on a single VFPU condition-code bit into bvt/bvf.
+    setTargetDAGCombine(ISD::BRCOND);
   }
 
   setOperationAction(ISD::SMUL_LOHI,          MVT::i32, Custom);
@@ -1117,12 +1137,68 @@ static SDValue performXORCombine(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Fold `brcond (setcc (and (vcmp-result), 1<<bit), 0, ne/eq)` into a bvt/bvf
+// branch that reads the VFPU condition codes directly, dropping the mfvc. Only
+// fires when the mfvc value feeds nothing but this branch test.
+static SDValue performVfpuBrcondCombine(SDNode *N, SelectionDAG &DAG,
+                                        const MipsSubtarget &Subtarget) {
+  if (!Subtarget.hasAllegrex())
+    return SDValue();
+
+  SDValue Chain = N->getOperand(0);
+  SDValue Cond = N->getOperand(1);
+  SDValue Dest = N->getOperand(2);
+
+  if (Cond.getOpcode() != ISD::SETCC || !Cond.hasOneUse())
+    return SDValue();
+  auto *CCN = dyn_cast<CondCodeSDNode>(Cond.getOperand(2));
+  if (!CCN)
+    return SDValue();
+  ISD::CondCode CC = CCN->get();
+  if ((CC != ISD::SETNE && CC != ISD::SETEQ) ||
+      !isNullConstant(Cond.getOperand(1)))
+    return SDValue();
+
+  // LHS must be (and X, 1<<bit) with X = VfpuMfvc.
+  SDValue And = Cond.getOperand(0);
+  if (And.getOpcode() != ISD::AND || !And.hasOneUse())
+    return SDValue();
+  auto *MaskN = dyn_cast<ConstantSDNode>(And.getOperand(1));
+  if (!MaskN || !isPowerOf2_64(MaskN->getZExtValue()))
+    return SDValue();
+  unsigned Bit = Log2_64(MaskN->getZExtValue());
+  if (Bit > 7)
+    return SDValue();
+
+  SDValue Mfvc = And.getOperand(0);
+  if (Mfvc.getOpcode() != MipsISD::VfpuMfvc || !Mfvc.hasOneUse())
+    return SDValue();
+
+  // The mfvc's glue operand is produced by the vcmp. Re-emit a fresh compare
+  // glued to the branch (reusing the glue value directly would briefly give it
+  // two users), and let the now-dead mfvc/compare fall out.
+  SDValue Cmp = Mfvc.getOperand(0);
+  if (Cmp.getOpcode() != MipsISD::VfpuCmp)
+    return SDValue();
+
+  SDLoc DL(N);
+  SDValue NewCmp = DAG.getNode(MipsISD::VfpuCmp, DL, MVT::Glue, Cmp.getOperand(0),
+                               Cmp.getOperand(1), Cmp.getOperand(2));
+  // SETNE branches when the bit is set (bvt, sense 1); SETEQ when clear (bvf).
+  unsigned Sense = (CC == ISD::SETNE) ? 1 : 0;
+  return DAG.getNode(MipsISD::VfpuBrcond, DL, MVT::Other, Chain,
+                     DAG.getConstant(Sense, DL, MVT::i32),
+                     DAG.getConstant(Bit, DL, MVT::i32), Dest, NewCmp);
+}
+
 SDValue
 MipsSETargetLowering::PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const {
   SelectionDAG &DAG = DCI.DAG;
   SDValue Val;
 
   switch (N->getOpcode()) {
+  case ISD::BRCOND:
+    return performVfpuBrcondCombine(N, DAG, Subtarget);
   case ISD::AND:
     Val = performANDCombine(N, DAG, DCI, Subtarget);
     break;
@@ -1266,11 +1342,63 @@ getOpndList(SmallVectorImpl<SDValue> &Ops,
                                   Chain);
 }
 
+// Load/store a v16f32 VFPU matrix as its four v4f32 columns (lv.q/sv.q), 16
+// bytes apart. The columns are stitched into / split out of the matrix with
+// insert/extract_subvector, which select to sub_vfpuq_* subregister copies.
+static SDValue lowerAllegrexMatrixLoad(LoadSDNode *Nd, SelectionDAG &DAG) {
+  SDLoc DL(Nd);
+  SDValue Chain = Nd->getChain(), Ptr = Nd->getBasePtr();
+  EVT PtrVT = Ptr.getValueType();
+  Align A = Nd->getAlign();
+  auto Flags = Nd->getMemOperand()->getFlags();
+
+  SDValue Mat = DAG.getUNDEF(MVT::v16f32);
+  SmallVector<SDValue, 4> Chains;
+  for (unsigned I = 0; I != 4; ++I) {
+    SDValue ColPtr =
+        I ? DAG.getNode(ISD::ADD, DL, PtrVT, Ptr,
+                        DAG.getConstant(I * 16, DL, PtrVT))
+          : Ptr;
+    SDValue Col = DAG.getLoad(MVT::v4f32, DL, Chain, ColPtr,
+                              Nd->getPointerInfo().getWithOffset(I * 16),
+                              commonAlignment(A, I * 16), Flags);
+    Chains.push_back(Col.getValue(1));
+    Mat = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, MVT::v16f32, Mat, Col,
+                      DAG.getConstant(I * 4, DL, MVT::i32));
+  }
+  SDValue OutChain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Chains);
+  return DAG.getMergeValues({Mat, OutChain}, DL);
+}
+
+static SDValue lowerAllegrexMatrixStore(StoreSDNode *Nd, SelectionDAG &DAG) {
+  SDLoc DL(Nd);
+  SDValue Chain = Nd->getChain(), Ptr = Nd->getBasePtr(), Val = Nd->getValue();
+  EVT PtrVT = Ptr.getValueType();
+  Align A = Nd->getAlign();
+  auto Flags = Nd->getMemOperand()->getFlags();
+
+  SmallVector<SDValue, 4> Chains;
+  for (unsigned I = 0; I != 4; ++I) {
+    SDValue Col = DAG.getNode(ISD::EXTRACT_SUBVECTOR, DL, MVT::v4f32, Val,
+                              DAG.getConstant(I * 4, DL, MVT::i32));
+    SDValue ColPtr =
+        I ? DAG.getNode(ISD::ADD, DL, PtrVT, Ptr,
+                        DAG.getConstant(I * 16, DL, PtrVT))
+          : Ptr;
+    Chains.push_back(DAG.getStore(Chain, DL, Col, ColPtr,
+                                  Nd->getPointerInfo().getWithOffset(I * 16),
+                                  commonAlignment(A, I * 16), Flags));
+  }
+  return DAG.getNode(ISD::TokenFactor, DL, MVT::Other, Chains);
+}
+
 SDValue MipsSETargetLowering::lowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   LoadSDNode &Nd = *cast<LoadSDNode>(Op);
 
   // Allegrex has no v2f32/v3f32 load; scalarize into per-lane f32 loads.
   EVT MemVT = Nd.getMemoryVT();
+  if (Subtarget.hasAllegrex() && MemVT == MVT::v16f32)
+    return lowerAllegrexMatrixLoad(&Nd, DAG);
   if (Subtarget.hasAllegrex() && MemVT.isVector() &&
       (MemVT == MVT::v2f32 || MemVT == MVT::v3f32)) {
     auto [Lo, Hi] = scalarizeVectorLoad(&Nd, DAG);
@@ -1310,8 +1438,12 @@ bool MipsSETargetLowering::canMergeStoresTo(unsigned AS, EVT MemVT,
   // v2f32/v3f32 store from those scalars sends the two passes into an infinite
   // loop (scalarize -> merge -> scalarize -> ...). Forbid merging into those
   // types; merges to scalar/integer widths are still fine.
-  if (Subtarget.hasAllegrex() &&
-      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32))
+  // The same trap applies to v16f32 matrices (split into four per-column sv.q
+  // stores) and to any intermediate width the merger might try on the way there
+  // (e.g. v8f32), which the type legalizer would just split again. The only
+  // vector store the VFPU performs natively is the v4f32 quad, so refuse to
+  // merge into any wider/other FP vector.
+  if (Subtarget.hasAllegrex() && MemVT.isVector() && MemVT != MVT::v4f32)
     return false;
   return MipsTargetLowering::canMergeStoresTo(AS, MemVT, MF);
 }
@@ -1321,6 +1453,8 @@ SDValue MipsSETargetLowering::lowerSTORE(SDValue Op, SelectionDAG &DAG) const {
 
   // Allegrex has no v2f32/v3f32 store; scalarize into per-lane f32 stores.
   EVT MemVT = Nd.getMemoryVT();
+  if (Subtarget.hasAllegrex() && MemVT == MVT::v16f32)
+    return lowerAllegrexMatrixStore(&Nd, DAG);
   if (Subtarget.hasAllegrex() && MemVT.isVector() &&
       (MemVT == MVT::v2f32 || MemVT == MVT::v3f32))
     return scalarizeVectorStore(&Nd, DAG);
@@ -1667,6 +1801,16 @@ SDValue MipsSETargetLowering::lowerINTRINSIC_WO_CHAIN(SDValue Op,
   switch (Intrinsic) {
   default:
     return SDValue();
+  case Intrinsic::mips_allegrex_vcmp: {
+    // vcmp writes the VFPU condition codes; read them back into a GPR with
+    // mfvc. The compare and the read are tied by glue so nothing in between
+    // clobbers the condition codes (mirrors the scalar FPU's FCC0 handling).
+    SDValue Cond = Op.getOperand(1);
+    SDValue LHS = Op.getOperand(2);
+    SDValue RHS = Op.getOperand(3);
+    SDValue Cmp = DAG.getNode(MipsISD::VfpuCmp, DL, MVT::Glue, LHS, RHS, Cond);
+    return DAG.getNode(MipsISD::VfpuMfvc, DL, MVT::i32, Cmp);
+  }
   case Intrinsic::mips_shilo:
     return lowerDSPIntr(Op, DAG, MipsISD::SHILO);
   case Intrinsic::mips_dpau_h_qbl:
@@ -2603,6 +2747,28 @@ SDValue MipsSETargetLowering::lowerBUILD_VECTOR(SDValue Op,
                         DAG.getConstant(i, DL, MVT::i32));
     }
     return Vec;
+  }
+
+  // A v16f32 matrix is built one v4f32 column at a time (each column uses the
+  // scalar-slice path above), then the columns are inserted as subvectors.
+  if (Subtarget.hasAllegrex() && ResTy == MVT::v16f32) {
+    SDValue Mat = DAG.getUNDEF(MVT::v16f32);
+    for (unsigned Col = 0; Col != 4; ++Col) {
+      SDValue ColVec = DAG.getUNDEF(MVT::v4f32);
+      bool AnyDef = false;
+      for (unsigned R = 0; R != 4; ++R) {
+        SDValue Elt = Node->getOperand(Col * 4 + R);
+        if (Elt.isUndef())
+          continue;
+        ColVec = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, MVT::v4f32, ColVec, Elt,
+                             DAG.getConstant(R, DL, MVT::i32));
+        AnyDef = true;
+      }
+      if (AnyDef)
+        Mat = DAG.getNode(ISD::INSERT_SUBVECTOR, DL, MVT::v16f32, Mat, ColVec,
+                          DAG.getConstant(Col * 4, DL, MVT::i32));
+    }
+    return Mat;
   }
 
   if (!Subtarget.hasMSA() || !ResTy.is128BitVector())
