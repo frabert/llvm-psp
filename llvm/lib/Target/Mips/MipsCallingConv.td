@@ -79,18 +79,8 @@ def CC_MipsO32 : CallingConv<[
   CCIfType<[f64], CCAssignToStack<8, 8>>
 ]>;
 
-def CC_MipsAllegrex : CallingConv<[
-  // Promote i8/i16 arguments to i32.
-  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
-
-  // Integer values get stored in stack slots that are 4 bytes in
-  // size and 4-byte aligned.
-  CCIfType<[i32, f32], CCAssignToStack<4, 4>>,
-
-  // Integer values get stored in stack slots that are 8 bytes in
-  // size and 8-byte aligned.
-  CCIfType<[i64, f64], CCAssignToStack<8, 8>>
-]>;
+// Allegrex delegates argument passing and returns to the O32 conventions; see
+// CC_Mips_FixedArg / RetCC_Mips. VFPU vectors are kept out of the C ABI.
 
 // Only the return rules are defined here for O32. The rules for argument
 // passing are defined in MipsISelLowering.cpp.
@@ -112,12 +102,6 @@ def RetCC_MipsO32 : CallingConv<[
   CCIfType<[f64], CCIfSubtargetNot<"isFP64bit()", CCAssignToReg<[D0, D1]>>>
 ]>;
 
-def RetCC_MipsAllegrex : CallingConv<[
-  // Promote i1/i8/i16 return values to i32.
-  CCIfType<[i1, i8, i16], CCPromoteToType<i32>>,
-
-  CCIfType<[i32], CCAssignToReg<[V0, V1]>>
-]>;
 
 def CC_MipsO32_FP32 : CustomCallingConv;
 def CC_MipsO32_FP64 : CustomCallingConv;
@@ -302,7 +286,8 @@ def CC_Mips_FastCC : CallingConv<[
 //===----------------------------------------------------------------------===//
 
 def RetCC_Mips : CallingConv<[
-  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<RetCC_MipsAllegrex>>,
+  // Allegrex returns like O32: i32 in V0/V1(/A0/A1) and f32 in F0/F2.
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<RetCC_MipsO32>>,
   CCIfSubtarget<"isABI_N32()", CCDelegateTo<RetCC_MipsN>>,
   CCIfSubtarget<"isABI_N64()", CCDelegateTo<RetCC_MipsN>>,
   CCDelegateTo<RetCC_MipsO32>
@@ -346,7 +331,9 @@ def CC_Mips_FixedArg : CallingConv<[
 
   CCIfCC<"CallingConv::Fast", CCDelegateTo<CC_Mips_FastCC>>,
 
-  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsAllegrex>>,
+  // Allegrex passes fixed arguments like O32 (a0-a3 then stack; leading f32 in
+  // f12/f14). Vectors are deliberately kept out of the C ABI (passed as memory).
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsO32_FP>>,
   CCIfSubtarget<"isABI_O32()", CCIfSubtargetNot<"isGP64bit()", CCDelegateTo<CC_MipsO32_FP>>>,
   CCDelegateTo<CC_MipsN>
 ]>;
@@ -354,7 +341,7 @@ def CC_Mips_FixedArg : CallingConv<[
 def CC_Mips_VarArg : CallingConv<[
   CCIfByVal<CCDelegateTo<CC_Mips_ByVal>>,
 
-  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsAllegrex>>,
+  CCIfSubtarget<"isABI_Allegrex()", CCDelegateTo<CC_MipsO32_FP>>,
   CCIfSubtarget<"isABI_O32()", CCDelegateTo<CC_MipsO32_FP>>,
   CCDelegateTo<CC_MipsN_VarArg>
 ]>;

@@ -335,6 +335,23 @@ class SVR_Q_FMT<dag o, dag i, list<dag> patterns = []>
   let Inst{0}     = rt{0};
 }
 
+// Load-right counterpart of SVR_Q_FMT. Shares lvl.q's primary opcode; bit{1}
+// is forced to 1 to select the right half. Loads have no write-back flag.
+class LVR_Q_FMT<dag o, dag i, list<dag> patterns = []>
+  : InstSE<o, i, "lvr.q\t$rt, $addr", patterns, II_ALLEGREX, FrmI>
+{
+  let DecoderMethod = "DecodeMem";
+  bits<7> rt;
+  bits<21> addr;
+
+  let Inst{31-26} = 0b110101;
+  let Inst{25-21} = addr{20-16};
+  let Inst{20-16} = rt{6-2};
+  let Inst{15-2}  = addr{13-0};
+  let Inst{1}     = 0b1;
+  let Inst{0}     = rt{0};
+}
+
 class SV_Q_FMT<dag o, dag i, list<dag> patterns = []>
   : InstSE<o, i, "sv.q\t$rt, $addr, $wb", patterns, II_ALLEGREX, FrmI>
 {

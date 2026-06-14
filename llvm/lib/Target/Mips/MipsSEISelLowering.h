@@ -60,6 +60,9 @@ class TargetRegisterClass;
       return false;
     }
 
+    bool canMergeStoresTo(unsigned AS, EVT MemVT,
+                          const MachineFunction &MF) const override;
+
     const TargetRegisterClass *getRepRegClassFor(MVT VT) const override;
 
   private:

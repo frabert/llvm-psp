@@ -1626,7 +1626,9 @@ def GenericAllegrex : ProcResource<1> { let BufferSize = 1; }
 def GenericWriteAllegrex : SchedWriteRes<[GenericAllegrex]> { let Latency = 0; }
 def : InstRW<[GenericWriteAllegrex], (instrs HALT, DBREAK, DRET, MTIC, MFIC,
                                              VFLUSH, VSYNC, VNOP, WSBW, MAX, MIN,
-                                             LV_S, LV_Q, SV_S, SV_Q, SVL_Q, SVR_Q,
+                                             LV_S, LV_Q, LVL_Q, LVR_Q,
+                                             SV_S, SV_Q, SVL_Q, SVR_Q,
+                                             VUC2IFS_S,
                                              CFC0, CTC0, MFDR, MTDR, MFV, MTV,
                                              MFVC, MTVC, VMFVC, VMTVC, BVF, BVT,
                                              BVFL, BVTL, BITREV_V, LDL_V, SDL_V,

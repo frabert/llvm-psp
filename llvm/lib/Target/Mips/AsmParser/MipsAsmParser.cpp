@@ -280,6 +280,12 @@ class MipsAsmParser : public MCTargetAsmParser {
   bool expandLoadStoreMultiple(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
                                const MCSubtargetInfo *STI);
 
+  bool expandUnalignedVFPUQuad(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
+                               const MCSubtargetInfo *STI);
+
+  bool expandVFPUStoreQWriteBack(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
+                                 const MCSubtargetInfo *STI);
+
   bool expandAliasImmediate(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
                             const MCSubtargetInfo *STI);
 
@@ -2772,6 +2778,22 @@ MipsAsmParser::tryExpandInstruction(MCInst &Inst, SMLoc IDLoc, MCStreamer &Out,
   case Mips::LWM_MM:
     return expandLoadStoreMultiple(Inst, IDLoc, Out, STI) ? MER_Fail
                                                           : MER_Success;
+  case Mips::ULV_Q:
+  case Mips::USV_Q:
+    return expandUnalignedVFPUQuad(Inst, IDLoc, Out, STI) ? MER_Fail
+                                                          : MER_Success;
+  case Mips::SV_Q:
+  case Mips::SVR_Q: {
+    // These carry a trailing write-back operand, so the generic mem-operand
+    // expansion (which inspects the last operand) cannot reach their offset.
+    // Only a symbolic or out-of-range offset needs expanding; pass everything
+    // else through unchanged.
+    const MCOperand &Off = Inst.getOperand(2);
+    if (Off.isExpr() || (Off.isImm() && !isInt<16>(Off.getImm())))
+      return expandVFPUStoreQWriteBack(Inst, IDLoc, Out, STI) ? MER_Fail
+                                                              : MER_Success;
+    return MER_NotAMacro;
+  }
   case Mips::JalOneReg:
   case Mips::JalTwoReg:
     return expandJalWithRegs(Inst, IDLoc, Out, STI) ? MER_Fail : MER_Success;
@@ -4245,6 +4267,82 @@ bool MipsAsmParser::expandLoadStoreMultiple(MCInst &Inst, SMLoc IDLoc,
 
   Inst.setOpcode(NewOpcode);
   Out.emitInstruction(Inst, *STI);
+  return false;
+}
+
+bool MipsAsmParser::expandUnalignedVFPUQuad(MCInst &Inst, SMLoc IDLoc,
+                                            MCStreamer &Out,
+                                            const MCSubtargetInfo *STI) {
+  MipsTargetStreamer &TOut = getTargetStreamer();
+  bool IsLoad = Inst.getOpcode() == Mips::ULV_Q;
+
+  // Pseudo operands: $rt, then the mem operand as base register + offset imm.
+  MCRegister Rt = Inst.getOperand(0).getReg();
+  MCRegister Base = Inst.getOperand(1).getReg();
+  const MCOperand &OffOp = Inst.getOperand(2);
+
+  // Only the constant-offset form is supported; this matches what the PSP
+  // toolchain emits for ulv.q/usv.q (a small in-range displacement).
+  if (!OffOp.isImm())
+    return Error(IDLoc, "unsupported operand for unaligned VFPU quad");
+
+  int64_t Offset = OffOp.getImm();
+  if (Offset > 0x7fff - 12 || Offset < -0x8000)
+    return Error(IDLoc, "operand overflow in unaligned VFPU quad");
+
+  // The left half addresses the high end of the 16-byte slot (offset + 12); the
+  // right half uses the base offset. See binutils M_ULV_Q_AB / M_USV_Q_AB.
+  unsigned LeftOpc = IsLoad ? Mips::LVL_Q : Mips::SVL_Q;
+  TOut.emitRRI(LeftOpc, Rt, Base, Offset + 12, IDLoc, STI);
+
+  if (IsLoad) {
+    TOut.emitRRI(Mips::LVR_Q, Rt, Base, Offset, IDLoc, STI);
+  } else {
+    // SVR_Q carries a write-back operand that is unused in its encoding; supply
+    // a placeholder so the encoder sees the expected operand count.
+    MCInst Right;
+    Right.setOpcode(Mips::SVR_Q);
+    Right.addOperand(MCOperand::createReg(Rt));
+    Right.addOperand(MCOperand::createReg(Base));
+    Right.addOperand(MCOperand::createImm(Offset));
+    Right.addOperand(MCOperand::createImm(0));
+    Right.setLoc(IDLoc);
+    Out.emitInstruction(Right, *STI);
+  }
+  return false;
+}
+
+bool MipsAsmParser::expandVFPUStoreQWriteBack(MCInst &Inst, SMLoc IDLoc,
+                                              MCStreamer &Out,
+                                              const MCSubtargetInfo *STI) {
+  // sv.q / svr.q operands are $rt, base register, offset, write-back flag. The
+  // generic mem expansion can't see the offset because of the trailing flag, so
+  // materialize the full address (base + symbol/large offset) into AT and emit
+  // the store with AT as base and a zero displacement, mirroring expandMem9Inst.
+  MCRegister Rt = Inst.getOperand(0).getReg();
+  MCRegister BaseReg = Inst.getOperand(1).getReg();
+  const MCOperand &OffsetOp = Inst.getOperand(2);
+  int64_t Wb = Inst.getOperand(3).getImm();
+
+  MCRegister ATReg = getATReg(IDLoc);
+  if (!ATReg)
+    return true;
+
+  if (OffsetOp.isExpr())
+    loadAndAddSymbolAddress(OffsetOp.getExpr(), ATReg, BaseReg,
+                            !ABI.ArePtrs64bit(), IDLoc, Out, STI);
+  else
+    loadImmediate(OffsetOp.getImm(), ATReg, BaseReg, !ABI.ArePtrs64bit(), true,
+                  IDLoc, Out, STI);
+
+  MCInst Store;
+  Store.setOpcode(Inst.getOpcode());
+  Store.addOperand(MCOperand::createReg(Rt));
+  Store.addOperand(MCOperand::createReg(ATReg));
+  Store.addOperand(MCOperand::createImm(0));
+  Store.addOperand(MCOperand::createImm(Wb));
+  Store.setLoc(IDLoc);
+  Out.emitInstruction(Store, *STI);
   return false;
 }
 

@@ -919,9 +919,9 @@ BUILTIN(__builtin_allegrex_min, "iii", "nc")
 BUILTIN(__builtin_allegrex_sync, "v", "")
 BUILTIN(__builtin_allegrex_cache, "vii", "")
 BUILTIN(__builtin_allegrex_sqrt_s, "ff", "nc")
-BUILTIN(__builtin_allegrex_ceil_w_s, "ff", "nc")
-BUILTIN(__builtin_allegrex_floor_w_s, "ff", "nc")
-BUILTIN(__builtin_allegrex_round_w_s, "ff", "nc")
-BUILTIN(__builtin_allegrex_trunc_w_s, "ff", "nc")
+BUILTIN(__builtin_allegrex_ceil_w_s, "if", "nc")
+BUILTIN(__builtin_allegrex_floor_w_s, "if", "nc")
+BUILTIN(__builtin_allegrex_round_w_s, "if", "nc")
+BUILTIN(__builtin_allegrex_trunc_w_s, "if", "nc")
 
 #undef BUILTIN

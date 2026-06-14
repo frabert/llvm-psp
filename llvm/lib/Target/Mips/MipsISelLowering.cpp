@@ -100,8 +100,10 @@ MVT MipsTargetLowering::getRegisterTypeForCallingConv(LLVMContext &Context,
     return getRegisterType(Context, VT);
 
   if (VT.isPow2VectorType() && VT.getVectorElementType().isRound())
-    return Subtarget.isABI_O32() || VT.getSizeInBits() == 32 ? MVT::i32
-                                                             : MVT::i64;
+    return Subtarget.isABI_O32() || Subtarget.isABI_Allegrex() ||
+                   VT.getSizeInBits() == 32
+               ? MVT::i32
+               : MVT::i64;
   return getRegisterType(Context, VT.getVectorElementType());
 }
 
@@ -110,7 +112,10 @@ unsigned MipsTargetLowering::getNumRegistersForCallingConv(LLVMContext &Context,
                                                            EVT VT) const {
   if (VT.isVector()) {
     if (VT.isPow2VectorType() && VT.getVectorElementType().isRound())
-      return divideCeil(VT.getSizeInBits(), Subtarget.isABI_O32() ? 32 : 64);
+      return divideCeil(VT.getSizeInBits(),
+                        Subtarget.isABI_O32() || Subtarget.isABI_Allegrex()
+                            ? 32
+                            : 64);
     return VT.getVectorNumElements() *
            getNumRegisters(Context, VT.getVectorElementType());
   }
@@ -3809,7 +3814,7 @@ SDValue MipsTargetLowering::LowerFormalArguments(
           (RegVT == MVT::i64 && ValVT == MVT::f64) ||
           (RegVT == MVT::f64 && ValVT == MVT::i64))
         ArgValue = DAG.getNode(ISD::BITCAST, DL, ValVT, ArgValue);
-      else if (ABI.IsO32() && RegVT == MVT::i32 &&
+      else if ((ABI.IsO32() || ABI.IsAllegrex()) && RegVT == MVT::i32 &&
                ValVT == MVT::f64) {
         assert(VA.needsCustom() && "Expected custom argument for f64 split");
         CCValAssign &NextVA = ArgLocs[++i];
@@ -4141,7 +4146,8 @@ static std::pair<bool, bool> parsePhysicalReg(StringRef C, StringRef &Prefix,
 
 EVT MipsTargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
                                             ISD::NodeType) const {
-  bool Cond = !Subtarget.isABI_O32() && VT.getSizeInBits() == 32;
+  bool Cond = !Subtarget.isABI_O32() && !Subtarget.isABI_Allegrex() &&
+              VT.getSizeInBits() == 32;
   EVT MinVT = getRegisterType(Cond ? MVT::i64 : MVT::i32);
   return VT.bitsLT(MinVT) ? MinVT : VT;
 }
@@ -4685,7 +4691,7 @@ void MipsTargetLowering::HandleByVal(CCState *State, unsigned &Size,
     ArrayRef<MCPhysReg> IntArgRegs = ABI.GetByValArgRegs();
     // FIXME: The O32 case actually describes no shadow registers.
     const MCPhysReg *ShadowRegs =
-        ABI.IsO32() ? IntArgRegs.data() : Mips64DPRegs;
+        (ABI.IsO32() || ABI.IsAllegrex()) ? IntArgRegs.data() : Mips64DPRegs;
 
     // We used to check the size as well but we can't do that anymore since
     // CCState::HandleByVal() rounds up the size after calling this function.

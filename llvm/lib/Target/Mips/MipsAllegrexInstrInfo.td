@@ -114,6 +114,10 @@ defm VI2US  : VFPU_B_SPTQ_FMT<0xd03e0000, "vi2us" , null_frag, 0, 1, 0, 1,
 defm VLGB   : VFPU_B_SPTQ_FMT<0xd0370000, "vlgb"  , null_frag, 1, 0, 0, 0>;
 defm VI2UC  : VFPU_B_SPTQ_FMT<0xd03c0000, "vi2uc" , null_frag, 0, 0, 0, 1,
                               ScalarOperands>;
+// Unsigned-char-to-int: reads one packed-byte scalar and writes four ints to a
+// quad, so the source/dest widths differ and it can't use the SPTQ multiclass.
+def VUC2IFS_S : VFPU_B_FMT<0xd0380000, 0, (outs VFPUQOpnd:$rd),
+                           (ins VFPUSOpnd:$rs), "vuc2ifs.s", []>, INSN_ALLEGREX;
 defm VMMOV : VFPU_B_SPTQ_FMT<0xf3800000, "vmmov", null_frag, 0, 1, 1, 1,
                              MatrixOperands, MatrixOperands>;
 
@@ -256,6 +260,24 @@ def LV_Q  : VFPU_LOADSTORE_FMT<0b110110, "lv.q",
   let DecoderNamespace = "Allegrex";
 }
 
+def LVL_Q : VFPU_LOADSTORE_FMT<0b110101, "lvl.q",
+              (outs VFPUQOpnd:$rt), (ins mem:$addr)>, INSN_ALLEGREX
+{
+  string DecoderMethod = "DecodeVFPUMemQ";
+  // Shares the LDC1 primary opcode; kept in a separate decoder table.
+  let DecoderNamespace = "Allegrex";
+  // No ISel pattern, so mayLoad must be set explicitly; without it the
+  // asm parser's symbol/large-offset mem expansion is skipped.
+  let mayLoad = 1;
+}
+
+def LVR_Q : LVR_Q_FMT<(outs VFPUQOpnd:$rt), (ins mem:$addr)>, INSN_ALLEGREX {
+  // Encoding overlaps lvl.q, so this is an assembler-only mnemonic; that
+  // encoding disassembles back as lvl.q.
+  let isAsmParserOnly = 1;
+  let mayLoad = 1;
+}
+
 def VWB_Q : VFPU_LOADSTORE_FMT<0b111110, "vwb.q",
               (outs), (ins VFPUQOpnd:$rt, mem:$addr)>, INSN_ALLEGREX
 {
@@ -280,12 +302,15 @@ def SVL_Q : VFPU_LOADSTORE_FMT<0b111101, "svl.q",
   string DecoderMethod = "DecodeVFPUMemQ";
   // Shares the SDC1 primary opcode; kept in a separate decoder table.
   let DecoderNamespace = "Allegrex";
+  // No ISel pattern, so mayStore must be set explicitly (see LVL_Q).
+  let mayStore = 1;
 }
 
 def SVR_Q : SVR_Q_FMT<(outs), (ins VFPUQOpnd:$rt, mem:$addr, VFPUWriteBackOpnd:$wb)>, INSN_ALLEGREX {
   // Encoding overlaps svl.q, so this is an assembler-only mnemonic; that
   // encoding disassembles back as svl.q.
   let isAsmParserOnly = 1;
+  let mayStore = 1;
 }
 
 def SV_Q : SV_Q_FMT<(outs), (ins VFPUQOpnd:$rt, mem:$addr, VFPUWriteBackOpnd:$wb)>, INSN_ALLEGREX
@@ -301,6 +326,171 @@ def : MipsInstAlias<"sv.q\t$rt, $addr", (SV_Q VFPUQOpnd:$rt, mem:$addr, 1)>, INS
 def : MipsPat<(alignedstore (v4f32 VFPUQOpnd:$rt), addr:$addr), (SV_Q VFPUQOpnd:$rt, addr:$addr, 1)>
 {
   string DecoderMethod = "DecodeMem";
+}
+
+//===----------------------------------------------------------------------===//
+// VFPU vector lane access (D1/E1).
+//
+// A VFPU vector is held in the column-major register file where lane i is the
+// scalar subregister sub_vfpus_(i+1). EXTRACT/INSERT/SCALAR_TO_VECTOR therefore
+// lower directly to subregister copies, with no memory traffic; BUILD_VECTOR is
+// custom-lowered to a chain of these inserts (see MipsSEISelLowering.cpp).
+//
+// Guarded by HasAllegrex so these generic-node patterns do not interfere with
+// the MSA v4f32 lane patterns on non-Allegrex subtargets.
+//===----------------------------------------------------------------------===//
+
+let Predicates = [HasAllegrex] in {
+
+// EXTRACT_VECTOR_ELT: pull lane i out as a VFPU scalar.
+def : MipsPat<(f32 (vector_extract (v4f32 VFPUQOpnd:$v), (i32 0))),
+              (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, sub_vfpus_1))>;
+def : MipsPat<(f32 (vector_extract (v4f32 VFPUQOpnd:$v), (i32 1))),
+              (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, sub_vfpus_2))>;
+def : MipsPat<(f32 (vector_extract (v4f32 VFPUQOpnd:$v), (i32 2))),
+              (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, sub_vfpus_3))>;
+def : MipsPat<(f32 (vector_extract (v4f32 VFPUQOpnd:$v), (i32 3))),
+              (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, sub_vfpus_4))>;
+def : MipsPat<(f32 (vector_extract (v3f32 VFPUTOpnd:$v), (i32 0))),
+              (f32 (EXTRACT_SUBREG VFPUTOpnd:$v, sub_vfpus_1))>;
+def : MipsPat<(f32 (vector_extract (v3f32 VFPUTOpnd:$v), (i32 1))),
+              (f32 (EXTRACT_SUBREG VFPUTOpnd:$v, sub_vfpus_2))>;
+def : MipsPat<(f32 (vector_extract (v3f32 VFPUTOpnd:$v), (i32 2))),
+              (f32 (EXTRACT_SUBREG VFPUTOpnd:$v, sub_vfpus_3))>;
+def : MipsPat<(f32 (vector_extract (v2f32 VFPUPOpnd:$v), (i32 0))),
+              (f32 (EXTRACT_SUBREG VFPUPOpnd:$v, sub_vfpus_1))>;
+def : MipsPat<(f32 (vector_extract (v2f32 VFPUPOpnd:$v), (i32 1))),
+              (f32 (EXTRACT_SUBREG VFPUPOpnd:$v, sub_vfpus_2))>;
+
+// INSERT_VECTOR_ELT: drop a VFPU scalar into lane i.
+def : MipsPat<(v4f32 (vector_insert (v4f32 VFPUQOpnd:$v), (f32 VFPUSOpnd:$s), (i32 0))),
+              (INSERT_SUBREG VFPUQOpnd:$v, VFPUSOpnd:$s, sub_vfpus_1)>;
+def : MipsPat<(v4f32 (vector_insert (v4f32 VFPUQOpnd:$v), (f32 VFPUSOpnd:$s), (i32 1))),
+              (INSERT_SUBREG VFPUQOpnd:$v, VFPUSOpnd:$s, sub_vfpus_2)>;
+def : MipsPat<(v4f32 (vector_insert (v4f32 VFPUQOpnd:$v), (f32 VFPUSOpnd:$s), (i32 2))),
+              (INSERT_SUBREG VFPUQOpnd:$v, VFPUSOpnd:$s, sub_vfpus_3)>;
+def : MipsPat<(v4f32 (vector_insert (v4f32 VFPUQOpnd:$v), (f32 VFPUSOpnd:$s), (i32 3))),
+              (INSERT_SUBREG VFPUQOpnd:$v, VFPUSOpnd:$s, sub_vfpus_4)>;
+def : MipsPat<(v3f32 (vector_insert (v3f32 VFPUTOpnd:$v), (f32 VFPUSOpnd:$s), (i32 0))),
+              (INSERT_SUBREG VFPUTOpnd:$v, VFPUSOpnd:$s, sub_vfpus_1)>;
+def : MipsPat<(v3f32 (vector_insert (v3f32 VFPUTOpnd:$v), (f32 VFPUSOpnd:$s), (i32 1))),
+              (INSERT_SUBREG VFPUTOpnd:$v, VFPUSOpnd:$s, sub_vfpus_2)>;
+def : MipsPat<(v3f32 (vector_insert (v3f32 VFPUTOpnd:$v), (f32 VFPUSOpnd:$s), (i32 2))),
+              (INSERT_SUBREG VFPUTOpnd:$v, VFPUSOpnd:$s, sub_vfpus_3)>;
+def : MipsPat<(v2f32 (vector_insert (v2f32 VFPUPOpnd:$v), (f32 VFPUSOpnd:$s), (i32 0))),
+              (INSERT_SUBREG VFPUPOpnd:$v, VFPUSOpnd:$s, sub_vfpus_1)>;
+def : MipsPat<(v2f32 (vector_insert (v2f32 VFPUPOpnd:$v), (f32 VFPUSOpnd:$s), (i32 1))),
+              (INSERT_SUBREG VFPUPOpnd:$v, VFPUSOpnd:$s, sub_vfpus_2)>;
+
+// SCALAR_TO_VECTOR: a scalar becomes lane 0 of a fresh vector.
+def : MipsPat<(v4f32 (scalar_to_vector (f32 VFPUSOpnd:$s))),
+              (INSERT_SUBREG (v4f32 (IMPLICIT_DEF)), VFPUSOpnd:$s, sub_vfpus_1)>;
+def : MipsPat<(v3f32 (scalar_to_vector (f32 VFPUSOpnd:$s))),
+              (INSERT_SUBREG (v3f32 (IMPLICIT_DEF)), VFPUSOpnd:$s, sub_vfpus_1)>;
+def : MipsPat<(v2f32 (scalar_to_vector (f32 VFPUSOpnd:$s))),
+              (INSERT_SUBREG (v2f32 (IMPLICIT_DEF)), VFPUSOpnd:$s, sub_vfpus_1)>;
+
+//===----------------------------------------------------------------------===//
+// VFPU intrinsic-backed ops (D3). Each intrinsic is overloaded on the vector
+// width; one MipsPat per concrete width selects the matching .p/.t/.q op.
+//===----------------------------------------------------------------------===//
+
+// Unary same-width: vsat0 / vsat1 / vsgn / vocp.
+multiclass VFPUUnaryIntrPat<Intrinsic Op, string Inst> {
+  def : MipsPat<(v2f32 (Op (v2f32 VFPUPOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_P") VFPUPOpnd:$rs)>;
+  def : MipsPat<(v3f32 (Op (v3f32 VFPUTOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_T") VFPUTOpnd:$rs)>;
+  def : MipsPat<(v4f32 (Op (v4f32 VFPUQOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs)>;
+}
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vsat0, "VSAT0">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vsat1, "VSAT1">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vsgn,  "VSGN">;
+defm : VFPUUnaryIntrPat<int_mips_allegrex_vocp,  "VOCP">;
+
+// Unary lane shuffles with hardware-restricted widths. vbfy1 is .p/.q; vbfy2
+// and vsrt1-4 are .q only, so they get explicit per-width patterns rather than
+// the .p/.t/.q multiclass.
+def : MipsPat<(v2f32 (int_mips_allegrex_vbfy1 (v2f32 VFPUPOpnd:$rs))),
+              (VBFY1_P VFPUPOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vbfy1 (v4f32 VFPUQOpnd:$rs))),
+              (VBFY1_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vbfy2 (v4f32 VFPUQOpnd:$rs))),
+              (VBFY2_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vsrt1 (v4f32 VFPUQOpnd:$rs))),
+              (VSRT1_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vsrt2 (v4f32 VFPUQOpnd:$rs))),
+              (VSRT2_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vsrt3 (v4f32 VFPUQOpnd:$rs))),
+              (VSRT3_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vsrt4 (v4f32 VFPUQOpnd:$rs))),
+              (VSRT4_Q VFPUQOpnd:$rs)>;
+
+// Reductions vector -> scalar: vfad / vavg.
+multiclass VFPUReduceIntrPat<Intrinsic Op, string Inst> {
+  def : MipsPat<(f32 (Op (v2f32 VFPUPOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_P") VFPUPOpnd:$rs)>;
+  def : MipsPat<(f32 (Op (v3f32 VFPUTOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_T") VFPUTOpnd:$rs)>;
+  def : MipsPat<(f32 (Op (v4f32 VFPUQOpnd:$rs))),
+                (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs)>;
+}
+defm : VFPUReduceIntrPat<int_mips_allegrex_vfad, "VFAD">;
+defm : VFPUReduceIntrPat<int_mips_allegrex_vavg, "VAVG">;
+
+// Dot products (two same-width vectors -> scalar): vdot / vhdp.
+multiclass VFPUDotIntrPat<Intrinsic Op, string Inst> {
+  def : MipsPat<(f32 (Op (v2f32 VFPUPOpnd:$rs), (v2f32 VFPUPOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_P") VFPUPOpnd:$rs, VFPUPOpnd:$rt)>;
+  def : MipsPat<(f32 (Op (v3f32 VFPUTOpnd:$rs), (v3f32 VFPUTOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_T") VFPUTOpnd:$rs, VFPUTOpnd:$rt)>;
+  def : MipsPat<(f32 (Op (v4f32 VFPUQOpnd:$rs), (v4f32 VFPUQOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs, VFPUQOpnd:$rt)>;
+}
+defm : VFPUDotIntrPat<int_mips_allegrex_vdot, "VDOT">;
+defm : VFPUDotIntrPat<int_mips_allegrex_vhdp, "VHDP">;
+
+// Vector scaled by scalar: vscl.{p,t,q}.
+def : MipsPat<(v2f32 (int_mips_allegrex_vscl (v2f32 VFPUPOpnd:$rs), (f32 VFPUSOpnd:$rt))),
+              (VSCL_P VFPUPOpnd:$rs, VFPUSOpnd:$rt)>;
+def : MipsPat<(v3f32 (int_mips_allegrex_vscl (v3f32 VFPUTOpnd:$rs), (f32 VFPUSOpnd:$rt))),
+              (VSCL_T VFPUTOpnd:$rs, VFPUSOpnd:$rt)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vscl (v4f32 VFPUQOpnd:$rs), (f32 VFPUSOpnd:$rt))),
+              (VSCL_Q VFPUQOpnd:$rs, VFPUSOpnd:$rt)>;
+
+// Lane-wise compares producing a mask vector: vsge / vslt (same-width binary).
+multiclass VFPUCmpIntrPat<Intrinsic Op, string Inst> {
+  def : MipsPat<(v2f32 (Op (v2f32 VFPUPOpnd:$rs), (v2f32 VFPUPOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_P") VFPUPOpnd:$rs, VFPUPOpnd:$rt)>;
+  def : MipsPat<(v3f32 (Op (v3f32 VFPUTOpnd:$rs), (v3f32 VFPUTOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_T") VFPUTOpnd:$rs, VFPUTOpnd:$rt)>;
+  def : MipsPat<(v4f32 (Op (v4f32 VFPUQOpnd:$rs), (v4f32 VFPUQOpnd:$rt))),
+                (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs, VFPUQOpnd:$rt)>;
+}
+defm : VFPUCmpIntrPat<int_mips_allegrex_vsge, "VSGE">;
+defm : VFPUCmpIntrPat<int_mips_allegrex_vslt, "VSLT">;
+
+// Single-width 3D specials.
+def : MipsPat<(v4f32 (int_mips_allegrex_vqmul (v4f32 VFPUQOpnd:$rs), (v4f32 VFPUQOpnd:$rt))),
+              (VQMUL_Q VFPUQOpnd:$rs, VFPUQOpnd:$rt)>;
+def : MipsPat<(v3f32 (int_mips_allegrex_vcrs (v3f32 VFPUTOpnd:$rs), (v3f32 VFPUTOpnd:$rt))),
+              (VCRS_T VFPUTOpnd:$rs, VFPUTOpnd:$rt)>;
+def : MipsPat<(f32 (int_mips_allegrex_vdet (v2f32 VFPUPOpnd:$rs), (v2f32 VFPUPOpnd:$rt))),
+              (VDET_P VFPUPOpnd:$rs, VFPUPOpnd:$rt)>;
+
+} // Predicates = [HasAllegrex]
+
+// Unaligned quad load/store (A4). binutils expands these to a left/right pair
+// addressing the high and low ends of the (possibly unaligned) 16-byte slot:
+//   ulv.q vt, off(b) -> lvl.q vt, off+12(b) ; lvr.q vt, off(b)
+//   usv.q vt, off(b) -> svl.q vt, off+12(b) ; svr.q vt, off(b)
+// Expanded in MipsAsmParser::expandUnalignedVFPUStore/Load.
+let isPseudo = 1, isCodeGenOnly = 0 in {
+def ULV_Q : MipsAsmPseudoInst<(outs VFPUQOpnd:$rt), (ins mem:$addr),
+                              "ulv.q\t$rt, $addr">, INSN_ALLEGREX;
+def USV_Q : MipsAsmPseudoInst<(outs), (ins VFPUQOpnd:$rt, mem:$addr),
+                              "usv.q\t$rt, $addr">, INSN_ALLEGREX;
 }
 
 defm VF2IN : VFPU_BITCAST_SPTQ_FMT<"vf2in", 0b11010010000>;
@@ -376,6 +566,21 @@ def VMTVC:
 
 defm VCMOVT : VCMOV_SPTQ_FMT<0xd2a00000, "vcmovt">;
 defm VCMOVF : VCMOV_SPTQ_FMT<0xd2a80000, "vcmovf">;
+
+// The bare `vcmov` macro is an alias for `vcmovt`: binutils always expands it to
+// the true-condition form, passing the move-condition immediate through.
+def : MipsInstAlias<"vcmov.s\t$rd, $rs, $cnd",
+                    (VCMOVT_S VFPUSOpnd:$rd, VFPUSOpnd:$rs, i8imm:$cnd), 0>,
+                    INSN_ALLEGREX;
+def : MipsInstAlias<"vcmov.p\t$rd, $rs, $cnd",
+                    (VCMOVT_P VFPUPOpnd:$rd, VFPUPOpnd:$rs, i8imm:$cnd), 0>,
+                    INSN_ALLEGREX;
+def : MipsInstAlias<"vcmov.t\t$rd, $rs, $cnd",
+                    (VCMOVT_T VFPUTOpnd:$rd, VFPUTOpnd:$rs, i8imm:$cnd), 0>,
+                    INSN_ALLEGREX;
+def : MipsInstAlias<"vcmov.q\t$rd, $rs, $cnd",
+                    (VCMOVT_Q VFPUQOpnd:$rd, VFPUQOpnd:$rs, i8imm:$cnd), 0>,
+                    INSN_ALLEGREX;
 
 def VWBN_S:
   InstSE<(outs VFPUSOpnd:$rd), (ins VFPUSOpnd:$rs, i8imm:$exp),
@@ -492,6 +697,10 @@ def : MipsPat<(i32 (int_mips_allegrex_clz GPR32Opnd:$rhs)),
               (CLZ GPR32Opnd:$rhs)>;
 def : MipsPat<(i32 (int_mips_allegrex_clo GPR32Opnd:$rhs)),
               (CLO GPR32Opnd:$rhs)>;
+// Count trailing ones: reverse the bits, then count leading ones (matches GCC's
+// allegrex_ctosi2 expansion: bitrev followed by clo).
+def : MipsPat<(i32 (int_mips_allegrex_cto GPR32Opnd:$rhs)),
+              (CLO (BITREV_V GPR32Opnd:$rhs))>;
 def : MipsPat<(i32 (int_mips_allegrex_rotr GPR32Opnd:$rhs1, imm:$rhs2)),
               (ROTR GPR32Opnd:$rhs1, imm:$rhs2)>;
 def : MipsPat<(i32 (int_mips_allegrex_max GPR32Opnd:$a, GPR32Opnd:$b)),
@@ -507,11 +716,13 @@ def : MipsPat<(int_mips_allegrex_cache imm:$op, addr:$addr),
               (CACHE addr:$addr, imm:$op)>;
 def : MipsPat<(f32 (int_mips_allegrex_sqrt_s FGR32Opnd:$rhs)),
               (FSQRT_S FGR32Opnd:$rhs)>;
-def : MipsPat<(f32 (int_mips_allegrex_ceil_w_s FGR32Opnd:$rhs)),
-              (CEIL_W_S FGR32Opnd:$rhs)>;
-def : MipsPat<(f32 (int_mips_allegrex_floor_w_s FGR32Opnd:$rhs)),
-              (FLOOR_W_S FGR32Opnd:$rhs)>;
-def : MipsPat<(f32 (int_mips_allegrex_round_w_s FGR32Opnd:$rhs)),
-              (ROUND_W_S FGR32Opnd:$rhs)>;
-def : MipsPat<(f32 (int_mips_allegrex_trunc_w_s FGR32Opnd:$rhs)),
-              (TRUNC_W_S FGR32Opnd:$rhs)>;
+// These conversions leave their integer result in an FP register, so move it
+// into a GPR (mfc1) to produce the i32 the intrinsics now return.
+def : MipsPat<(i32 (int_mips_allegrex_ceil_w_s FGR32Opnd:$rhs)),
+              (MFC1 (CEIL_W_S FGR32Opnd:$rhs))>;
+def : MipsPat<(i32 (int_mips_allegrex_floor_w_s FGR32Opnd:$rhs)),
+              (MFC1 (FLOOR_W_S FGR32Opnd:$rhs))>;
+def : MipsPat<(i32 (int_mips_allegrex_round_w_s FGR32Opnd:$rhs)),
+              (MFC1 (ROUND_W_S FGR32Opnd:$rhs))>;
+def : MipsPat<(i32 (int_mips_allegrex_trunc_w_s FGR32Opnd:$rhs)),
+              (MFC1 (TRUNC_W_S FGR32Opnd:$rhs))>;

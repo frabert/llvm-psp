@@ -233,6 +233,31 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
     addRegisterClass(MVT::v2f32, &Mips::VFPUPRegClass);
     addRegisterClass(MVT::v3f32, &Mips::VFPUTRegClass);
     addRegisterClass(MVT::v4f32, &Mips::VFPUQRegClass);
+
+    // Aligned v4f32 load/store and elementwise arithmetic are wired up via
+    // LV_Q/SV_Q and the VFPU_*_SPTQ patterns. Lane access is lowered natively
+    // through the VFPU scalar-slice subregisters (sub_vfpus_*): EXTRACT/INSERT/
+    // SCALAR_TO_VECTOR are Legal and selected by the MipsPat subreg patterns;
+    // BUILD_VECTOR is custom-lowered to a chain of inserts (no memory traffic).
+    for (MVT VT : {MVT::v2f32, MVT::v3f32, MVT::v4f32}) {
+      setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Legal);
+      setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Legal);
+      setOperationAction(ISD::SCALAR_TO_VECTOR, VT, Legal);
+      setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
+      setOperationAction(ISD::VECTOR_SHUFFLE, VT, Expand);
+      setOperationAction(ISD::CONCAT_VECTORS, VT, Expand);
+      setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Expand);
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Expand);
+    }
+
+    // The VFPU only has scalar (lv.s/sv.s) and quad (lv.q/sv.q) memory ops, so
+    // v4f32 load/store map directly but v2f32/v3f32 must be scalarized into
+    // per-lane f32 loads/stores. Now that BUILD_VECTOR/EXTRACT are native (not
+    // memory-based), this scalarization no longer recurses through the legalizer.
+    for (MVT VT : {MVT::v2f32, MVT::v3f32}) {
+      setOperationAction(ISD::LOAD, VT, Custom);
+      setOperationAction(ISD::STORE, VT, Custom);
+    }
   }
 
   setOperationAction(ISD::SMUL_LOHI,          MVT::i32, Custom);
@@ -1244,6 +1269,14 @@ getOpndList(SmallVectorImpl<SDValue> &Ops,
 SDValue MipsSETargetLowering::lowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   LoadSDNode &Nd = *cast<LoadSDNode>(Op);
 
+  // Allegrex has no v2f32/v3f32 load; scalarize into per-lane f32 loads.
+  EVT MemVT = Nd.getMemoryVT();
+  if (Subtarget.hasAllegrex() && MemVT.isVector() &&
+      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32)) {
+    auto [Lo, Hi] = scalarizeVectorLoad(&Nd, DAG);
+    return DAG.getMergeValues({Lo, Hi}, SDLoc(Op));
+  }
+
   if (Nd.getMemoryVT() != MVT::f64 || !NoDPLoadStore)
     return MipsTargetLowering::lowerLOAD(Op, DAG);
 
@@ -1270,8 +1303,27 @@ SDValue MipsSETargetLowering::lowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   return DAG.getMergeValues(Ops, DL);
 }
 
+bool MipsSETargetLowering::canMergeStoresTo(unsigned AS, EVT MemVT,
+                                            const MachineFunction &MF) const {
+  // Allegrex has no v2f32/v3f32 store, so lowerSTORE scalarizes them into
+  // per-lane f32 stores. Letting DAGCombiner's store merger re-form a
+  // v2f32/v3f32 store from those scalars sends the two passes into an infinite
+  // loop (scalarize -> merge -> scalarize -> ...). Forbid merging into those
+  // types; merges to scalar/integer widths are still fine.
+  if (Subtarget.hasAllegrex() &&
+      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32))
+    return false;
+  return MipsTargetLowering::canMergeStoresTo(AS, MemVT, MF);
+}
+
 SDValue MipsSETargetLowering::lowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   StoreSDNode &Nd = *cast<StoreSDNode>(Op);
+
+  // Allegrex has no v2f32/v3f32 store; scalarize into per-lane f32 stores.
+  EVT MemVT = Nd.getMemoryVT();
+  if (Subtarget.hasAllegrex() && MemVT.isVector() &&
+      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32))
+    return scalarizeVectorStore(&Nd, DAG);
 
   if (Nd.getMemoryVT() != MVT::f64 || !NoDPLoadStore)
     return MipsTargetLowering::lowerSTORE(Op, DAG);
@@ -2535,6 +2587,23 @@ SDValue MipsSETargetLowering::lowerBUILD_VECTOR(SDValue Op,
   APInt SplatValue, SplatUndef;
   unsigned SplatBitSize;
   bool HasAnyUndefs;
+
+  // Allegrex/VFPU: assemble the vector by inserting each lane into the VFPU
+  // scalar-slice subregisters (the INSERT_VECTOR_ELT nodes select to subreg
+  // inserts). This keeps everything in the VFPU register file, with no memory
+  // round-trip, and avoids recursing back through the legalizer.
+  if (Subtarget.hasAllegrex() &&
+      (ResTy == MVT::v2f32 || ResTy == MVT::v3f32 || ResTy == MVT::v4f32)) {
+    SDValue Vec = DAG.getUNDEF(ResTy);
+    for (unsigned i = 0, e = Node->getNumOperands(); i != e; ++i) {
+      SDValue Elt = Node->getOperand(i);
+      if (Elt.isUndef())
+        continue;
+      Vec = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, ResTy, Vec, Elt,
+                        DAG.getConstant(i, DL, MVT::i32));
+    }
+    return Vec;
+  }
 
   if (!Subtarget.hasMSA() || !ResTy.is128BitVector())
     return SDValue();

@@ -173,3 +173,27 @@ vrot.p R520, S210, [s, c]          # CHECK: vrot.p R520, S210, [s, c]          #
 vrot.t R512, S103, [c, -s, -s]     # CHECK: vrot.t R512, S103, [c, -s, -s]     # encoding: [0x76,0xe4,0xb0,0xf3]
 vrot.q C610, S333, [c, -s, -s, -s] # CHECK: vrot.q C610, S333, [c, -s, -s, -s] # encoding: [0x99,0xef,0xb0,0xf3]
 vpfxd [0:1], [-1:1], [0:1], [-1:1] # CHECK: vpfxd [0:1], [-1:1], [0:1], [-1:1] # encoding: [0xdd,0x00,0x00,0xde]
+
+# VFPU load-left / load-right quad (A1)
+lvl.q C000, 12($7)                 # CHECK: lvl.q C000, 12($7)                 # encoding: [0x30,0x00,0xe0,0xd4]
+lvr.q C000, 12($7)                 # CHECK: lvr.q C000, 12($7)                 # encoding: [0x32,0x00,0xe0,0xd4]
+lvl.q C100, 8($5)                  # CHECK: lvl.q C100, 8($5)                  # encoding: [0x20,0x00,0xa1,0xd4]
+
+# VFPU unsigned-char-to-int scalar->quad (A2)
+vuc2ifs.s C100, S000               # CHECK: vuc2ifs.s C100, S000               # encoding: [0x04,0x00,0x38,0xd0]
+
+# VFPU conditional move + vcmov alias (A3). vcmov is an alias for vcmovt.
+vcmovt.s S000, S010, 0             # CHECK: vcmovt.s S000, S010, 0             # encoding: [0x00,0x01,0xa0,0xd2]
+vcmovf.q C100, C200, 3             # CHECK: vcmovf.q C100, C200, 3             # encoding: [0x84,0x88,0xab,0xd2]
+vcmov.s S000, S010, 0              # CHECK: vcmovt.s S000, S010, 0             # encoding: [0x00,0x01,0xa0,0xd2]
+vcmov.p C100, C200, 1              # CHECK: vcmovt.p C100, C200, 1             # encoding: [0x84,0x08,0xa1,0xd2]
+vcmov.t R100, R200, 2              # CHECK: vcmovt.t R100, R200, 2             # encoding: [0x24,0xa8,0xa2,0xd2]
+vcmov.q C100, C200, 3              # CHECK: vcmovt.q C100, C200, 3             # encoding: [0x84,0x88,0xa3,0xd2]
+
+# Unaligned quad load/store macros (A4). Each expands to a left/right pair.
+ulv.q C000, 0($4)
+# CHECK: lvl.q C000, 12($4)                # encoding: [0x30,0x00,0x80,0xd4]
+# CHECK: lvr.q C000, 0($4)                 # encoding: [0x02,0x00,0x80,0xd4]
+usv.q C000, 16($5)
+# CHECK: svl.q C000, 28($5)                # encoding: [0x70,0x00,0xa0,0xf4]
+# CHECK: svr.q C000, 16($5)                # encoding: [0x42,0x00,0xa0,0xf4]

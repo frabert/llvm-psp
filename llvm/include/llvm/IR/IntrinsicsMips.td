@@ -1795,6 +1795,8 @@ def int_mips_allegrex_clz : ClangBuiltin<"__builtin_allegrex_clz">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
 def int_mips_allegrex_clo : ClangBuiltin<"__builtin_allegrex_clo">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_cto : ClangBuiltin<"__builtin_allegrex_cto">,
+  Intrinsic<[llvm_i32_ty], [llvm_i32_ty], [IntrNoMem]>;
 def int_mips_allegrex_rotr : ClangBuiltin<"__builtin_allegrex_rotr">,
   Intrinsic<[llvm_i32_ty], [llvm_i32_ty, llvm_i32_ty], [IntrNoMem]>;
 def int_mips_allegrex_rotl : ClangBuiltin<"__builtin_allegrex_rotl">,
@@ -1813,12 +1815,78 @@ def int_mips_allegrex_cache : ClangBuiltin<"__builtin_allegrex_cache">,
   Intrinsic<[], [llvm_i32_ty, llvm_i32_ty], []>;
 def int_mips_allegrex_sqrt_s : ClangBuiltin<"__builtin_allegrex_sqrt_s">,
   Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+// The *_w_s float-to-int conversions return a 32-bit integer word (GCC types
+// these MIPS_SI_FTYPE_SF), not a float.
 def int_mips_allegrex_ceil_w_s : ClangBuiltin<"__builtin_allegrex_ceil_w_s">,
-  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+  Intrinsic<[llvm_i32_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_allegrex_floor_w_s : ClangBuiltin<"__builtin_allegrex_floor_w_s">,
-  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+  Intrinsic<[llvm_i32_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_allegrex_round_w_s : ClangBuiltin<"__builtin_allegrex_round_w_s">,
-  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+  Intrinsic<[llvm_i32_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_allegrex_trunc_w_s : ClangBuiltin<"__builtin_allegrex_trunc_w_s">,
-  Intrinsic<[llvm_float_ty], [llvm_float_ty], [IntrNoMem]>;
+  Intrinsic<[llvm_i32_ty], [llvm_float_ty], [IntrNoMem]>;
+
+//===----------------------------------------------------------------------===//
+// VFPU vector intrinsics (Allegrex). Overloaded on the vector width so a single
+// intrinsic covers the .p/.t/.q variants; the backend selects the matching VFPU
+// op. Matrix-shaped ops (vmmul/vtfm/...) are intentionally not modelled here as
+// they need a dedicated matrix value type.
+//===----------------------------------------------------------------------===//
+
+// Unary, same-width: clamp to [0,1] / [-1,1], sign, and one's-complement.
+def int_mips_allegrex_vsat0 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsat1 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsgn :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vocp :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+
+// Unary same-width lane shuffles (butterfly / sort). Float -> float; the backend
+// pattern restricts each to the widths the hardware supports (vbfy1: .p/.q,
+// vbfy2 and vsrt1-4: .q only).
+def int_mips_allegrex_vbfy1 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vbfy2 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsrt1 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsrt2 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsrt3 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vsrt4 :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>], [IntrNoMem]>;
+
+// Vector scaled by a scalar: vscl.{p,t,q}.
+def int_mips_allegrex_vscl :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, llvm_float_ty], [IntrNoMem]>;
+
+// Dot products: two same-width vectors -> scalar.
+def int_mips_allegrex_vdot :
+  Intrinsic<[llvm_float_ty], [llvm_anyvector_ty, LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vhdp :
+  Intrinsic<[llvm_float_ty], [llvm_anyvector_ty, LLVMMatchType<0>], [IntrNoMem]>;
+
+// Reductions: vector -> scalar (sum of lanes / average of lanes).
+def int_mips_allegrex_vfad :
+  Intrinsic<[llvm_float_ty], [llvm_anyvector_ty], [IntrNoMem]>;
+def int_mips_allegrex_vavg :
+  Intrinsic<[llvm_float_ty], [llvm_anyvector_ty], [IntrNoMem]>;
+
+// Lane-wise comparisons producing a 0.0/1.0 mask vector: vsge / vslt.
+def int_mips_allegrex_vsge :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vslt :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
+
+// 3D-math specials (single width each; the backend pattern restricts the type):
+//   vqmul (quaternion mul, .q), vcrs (cross product, .t), vdet (2x2 det, .p).
+def int_mips_allegrex_vqmul :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vcrs :
+  Intrinsic<[llvm_anyvector_ty], [LLVMMatchType<0>, LLVMMatchType<0>], [IntrNoMem]>;
+def int_mips_allegrex_vdet :
+  Intrinsic<[llvm_float_ty], [llvm_anyvector_ty, LLVMMatchType<0>], [IntrNoMem]>;
 }

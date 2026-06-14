@@ -260,3 +260,15 @@
 0x00 0x00 0xC8 0xE8 # CHECK: sv.s S001, 0($6)
 0x30 0x00 0xE0 0xF4 # CHECK: svl.q C000, 12($7)
 0x11 0x00 0x00 0xFA # CHECK: sv.q C010, 4($16), WT
+
+# VFPU load-left quad (A1). lvr.q is assembler-only; its encoding decodes back
+# as lvl.q with the right-half bit folded into the register number.
+0x30 0x00 0xE0 0xD4 # CHECK: lvl.q C000, 12($7)
+0x20 0x00 0xA1 0xD4 # CHECK: lvl.q C100, 8($5)
+
+# VFPU unsigned-char-to-int scalar->quad (A2)
+0x04 0x00 0x38 0xD0 # CHECK: vuc2ifs.s C100, S000
+
+# VFPU conditional move (A3). vcmov disassembles back as vcmovt.
+0x00 0x01 0xA0 0xD2 # CHECK: vcmovt.s S000, S010, 0
+0x84 0x88 0xAB 0xD2 # CHECK: vcmovf.q C100, C200, 3
