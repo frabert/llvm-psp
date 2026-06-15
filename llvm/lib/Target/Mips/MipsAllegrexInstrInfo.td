@@ -645,6 +645,21 @@ def MFV : MFV_FMT<0x48600000, (outs GPR32Opnd:$rt), (ins VFPUSOpnd:$rd),
 def MTV : MFV_FMT<0x48e00000, (outs VFPUSOpnd:$rd), (ins GPR32Opnd:$rt),
                   "mtv\t$rt, $rd", [/*(set VFPUSOpnd:$rd, GPR32Opnd:$rt)*/]>, INSN_ALLEGREX;
 
+// Integer (v4i32) lane access. A VFPU scalar slice holds raw 32 bits, so an
+// integer lane crosses to/from a GPR with mfv/mtv. EXTRACT pulls lane i out as
+// a GPR i32; INSERT/SCALAR_TO_VECTOR drop a GPR i32 into a slice. (Defined here,
+// after mfv/mtv; guarded by HasAllegrex like the f32 lane patterns above.)
+let Predicates = [HasAllegrex] in {
+foreach i = [1, 2, 3, 4] in {
+  def : MipsPat<(i32 (vector_extract (v4i32 VFPUQOpnd:$v), (i32 !add(i, -1)))),
+                (MFV (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, !cast<SubRegIndex>("sub_vfpus_"#i))))>;
+  def : MipsPat<(v4i32 (vector_insert (v4i32 VFPUQOpnd:$v), (i32 GPR32Opnd:$s), (i32 !add(i, -1)))),
+                (INSERT_SUBREG VFPUQOpnd:$v, (MTV GPR32Opnd:$s), !cast<SubRegIndex>("sub_vfpus_"#i))>;
+}
+def : MipsPat<(v4i32 (scalar_to_vector (i32 GPR32Opnd:$s))),
+              (INSERT_SUBREG (v4i32 (IMPLICIT_DEF)), (MTV GPR32Opnd:$s), sub_vfpus_1)>;
+} // Predicates = [HasAllegrex]
+
 def MFVC : MFVC_FMT<0x48600000, "mfvc",
                     (outs VCROpnd:$rd), (ins GPR32Opnd:$rt)>, INSN_ALLEGREX;
 def MTVC : MFVC_FMT<0x48e00000, "mtvc",

@@ -242,6 +242,19 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
     // guarded).
     addRegisterClass(MVT::v4i32, &Mips::VFPUQRegClass);
     setOperationAction(ISD::BITCAST, MVT::v4i32, Legal);
+    // Integer lanes move between the VFPU scalar slices and GPRs via mfv/mtv
+    // (selected by the MipsPat lane patterns), so lane access is native: a
+    // converted v4i32 can have individual ints pulled out, or one assembled
+    // from ints and fed to vi2f. BUILD_VECTOR reuses the float insert-chain
+    // path below.
+    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v4i32, Legal);
+    setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v4i32, Legal);
+    setOperationAction(ISD::SCALAR_TO_VECTOR, MVT::v4i32, Legal);
+    setOperationAction(ISD::BUILD_VECTOR, MVT::v4i32, Custom);
+    setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v4i32, Expand);
+    setOperationAction(ISD::CONCAT_VECTORS, MVT::v4i32, Expand);
+    setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i32, Expand);
+    setOperationAction(ISD::INSERT_SUBVECTOR, MVT::v4i32, Expand);
 
     // Aligned v4f32 load/store and elementwise arithmetic are wired up via
     // LV_Q/SV_Q and the VFPU_*_SPTQ patterns. Lane access is lowered natively
@@ -2746,7 +2759,8 @@ SDValue MipsSETargetLowering::lowerBUILD_VECTOR(SDValue Op,
   // inserts). This keeps everything in the VFPU register file, with no memory
   // round-trip, and avoids recursing back through the legalizer.
   if (Subtarget.hasAllegrex() &&
-      (ResTy == MVT::v2f32 || ResTy == MVT::v3f32 || ResTy == MVT::v4f32)) {
+      (ResTy == MVT::v2f32 || ResTy == MVT::v3f32 || ResTy == MVT::v4f32 ||
+       ResTy == MVT::v4i32)) {
     SDValue Vec = DAG.getUNDEF(ResTy);
     for (unsigned i = 0, e = Node->getNumOperands(); i != e; ++i) {
       SDValue Elt = Node->getOperand(i);
