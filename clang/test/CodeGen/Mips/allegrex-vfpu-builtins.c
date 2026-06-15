@@ -45,3 +45,25 @@ v2 test_vsocp(float a) {
   // CHECK: call <2 x float> @llvm.mips.allegrex.vsocp.s(float %{{.*}})
   return __builtin_allegrex_vsocp_s(a);
 }
+
+typedef int v4i __attribute__((vector_size(16)));
+
+// Float<->int conversions with an immediate scale.
+// CHECK-LABEL: define {{.*}}@test_vf2in(
+v4i test_vf2in(v4 f) {
+  // CHECK: call <4 x i32> @llvm.mips.allegrex.vf2in.q(<4 x float> %{{.*}}, i32 5)
+  return __builtin_allegrex_vf2in_q(f, 5);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vi2f(
+v4 test_vi2f(v4i i) {
+  // CHECK: call <4 x float> @llvm.mips.allegrex.vi2f.q(<4 x i32> %{{.*}}, i32 2)
+  return __builtin_allegrex_vi2f_q(i, 2);
+}
+
+// Pack four ints into one RGBA8888 word.
+// CHECK-LABEL: define {{.*}}@test_vi2c(
+int test_vi2c(v4i i) {
+  // CHECK: call i32 @llvm.mips.allegrex.vi2c.q(<4 x i32> %{{.*}})
+  return __builtin_allegrex_vi2c_q(i);
+}

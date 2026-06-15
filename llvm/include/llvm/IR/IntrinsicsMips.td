@@ -1974,19 +1974,19 @@ def int_mips_allegrex_vrot_q :
 // The result lives in the VFPU quad register file (VFPUQ holds both v4f32 and
 // v4i32), so it can be stored with sv.q or fed back into vi2f. The scale
 // (0..31) is an immediate.
-def int_mips_allegrex_vf2in_q :
+def int_mips_allegrex_vf2in_q : ClangBuiltin<"__builtin_allegrex_vf2in_q">,
   Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2iz_q :
+def int_mips_allegrex_vf2iz_q : ClangBuiltin<"__builtin_allegrex_vf2iz_q">,
   Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2iu_q :
+def int_mips_allegrex_vf2iu_q : ClangBuiltin<"__builtin_allegrex_vf2iu_q">,
   Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2id_q :
+def int_mips_allegrex_vf2id_q : ClangBuiltin<"__builtin_allegrex_vf2id_q">,
   Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vi2f_q :
+def int_mips_allegrex_vi2f_q : ClangBuiltin<"__builtin_allegrex_vi2f_q">,
   Intrinsic<[llvm_v4f32_ty], [llvm_v4i32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
 
@@ -1994,8 +1994,8 @@ def int_mips_allegrex_vi2f_q :
 // of each of four i32 lanes (signed-saturated / unsigned-saturated) and pack
 // them into a single 32-bit word (e.g. RGBA8888). The result is returned as an
 // i32 (it comes out in a VFPU scalar slice and crosses to a GPR via mfv).
-def int_mips_allegrex_vi2c_q :
+def int_mips_allegrex_vi2c_q : ClangBuiltin<"__builtin_allegrex_vi2c_q">,
   Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
-def int_mips_allegrex_vi2uc_q :
+def int_mips_allegrex_vi2uc_q : ClangBuiltin<"__builtin_allegrex_vi2uc_q">,
   Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
 }

@@ -940,4 +940,14 @@ BUILTIN(__builtin_allegrex_vlgb, "ff", "nc")
 BUILTIN(__builtin_allegrex_vsocp_s, "V2ff", "nc")
 BUILTIN(__builtin_allegrex_vsocp_p, "V4fV2f", "nc")
 
+// VFPU float<->int conversions (.q). The vf2i*/vi2f scale is an immediate
+// (the trailing "Ii"); vi2c/vi2uc pack four ints into one RGBA8888 word.
+BUILTIN(__builtin_allegrex_vf2in_q, "V4iV4fIi", "nc")
+BUILTIN(__builtin_allegrex_vf2iz_q, "V4iV4fIi", "nc")
+BUILTIN(__builtin_allegrex_vf2iu_q, "V4iV4fIi", "nc")
+BUILTIN(__builtin_allegrex_vf2id_q, "V4iV4fIi", "nc")
+BUILTIN(__builtin_allegrex_vi2f_q, "V4fV4iIi", "nc")
+BUILTIN(__builtin_allegrex_vi2c_q, "iV4i", "nc")
+BUILTIN(__builtin_allegrex_vi2uc_q, "iV4i", "nc")
+
 #undef BUILTIN
