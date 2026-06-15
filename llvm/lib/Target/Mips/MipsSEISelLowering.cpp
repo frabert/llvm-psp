@@ -280,6 +280,10 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
       setOperationAction(ISD::CONCAT_VECTORS, VT, Expand);
       setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Expand);
       setOperationAction(ISD::INSERT_SUBVECTOR, VT, Expand);
+      // A vector select whose mask is a VFPU float compare lowers to vcmp +
+      // per-lane vcmovt (cnd=6); see lowerVSELECT. Other masks fall back to the
+      // default expansion.
+      setOperationAction(ISD::VSELECT, VT, Custom);
     }
 
     // The VFPU only has scalar (lv.s/sv.s) and quad (lv.q/sv.q) memory ops, so
@@ -566,6 +570,49 @@ SDValue MipsSETargetLowering::lowerSELECT(SDValue Op, SelectionDAG &DAG) const {
                      Op->getOperand(2));
 }
 
+// Map a floating-point setcc condition to the VFPU vcmp condition-code field
+// (the FL/EQ/LT/LE/TR/NE/GE/GT/... table in MipsInstPrinter). Returns -1 for
+// conditions the VFPU compare can't express directly (e.g. unordered).
+static int getVfpuFCmpCond(ISD::CondCode CC) {
+  switch (CC) {
+  case ISD::SETOEQ: case ISD::SETEQ: return 1;  // EQ
+  case ISD::SETOLT: case ISD::SETLT: return 2;  // LT
+  case ISD::SETOLE: case ISD::SETLE: return 3;  // LE
+  case ISD::SETONE: case ISD::SETNE: return 5;  // NE
+  case ISD::SETOGE: case ISD::SETGE: return 6;  // GE
+  case ISD::SETOGT: case ISD::SETGT: return 7;  // GT
+  default: return -1;
+  }
+}
+
+SDValue MipsSETargetLowering::lowerVSELECT(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  EVT ResTy = Op.getValueType();
+  if (!Subtarget.hasAllegrex() ||
+      (ResTy != MVT::v2f32 && ResTy != MVT::v3f32 && ResTy != MVT::v4f32))
+    return SDValue();
+
+  // Only handle a mask that is a VFPU float compare of the same width: the
+  // compare goes into VCC and drives a per-lane vcmovt. Any other mask has no
+  // VCC to move on, so let the default expansion scalarize it.
+  SDValue Mask = Op.getOperand(0);
+  if (Mask.getOpcode() != ISD::SETCC || Mask.getOperand(0).getValueType() != ResTy)
+    return SDValue();
+  ISD::CondCode CC = cast<CondCodeSDNode>(Mask.getOperand(2))->get();
+  int VfpuCond = getVfpuFCmpCond(CC);
+  if (VfpuCond < 0)
+    return SDValue();
+
+  SDLoc DL(Op);
+  // The vcmp pattern matches the condition as a timm (TargetConstant).
+  SDValue Glue = DAG.getNode(MipsISD::VfpuCmp, DL, MVT::Glue,
+                             Mask.getOperand(0), Mask.getOperand(1),
+                             DAG.getTargetConstant(VfpuCond, DL, MVT::i32));
+  // VfpuCMov(false, true): lane = VCC ? true : false (vcmovt, cnd=6).
+  return DAG.getNode(MipsISD::VfpuCMov, DL, ResTy, Op.getOperand(2),
+                     Op.getOperand(1), Glue);
+}
+
 bool MipsSETargetLowering::allowsMisalignedMemoryAccesses(
     EVT VT, unsigned, Align, MachineMemOperand::Flags, unsigned *Fast) const {
   MVT::SimpleValueType SVT = VT.getSimpleVT().SimpleTy;
@@ -613,6 +660,7 @@ SDValue MipsSETargetLowering::LowerOperation(SDValue Op,
   case ISD::BUILD_VECTOR:       return lowerBUILD_VECTOR(Op, DAG);
   case ISD::VECTOR_SHUFFLE:     return lowerVECTOR_SHUFFLE(Op, DAG);
   case ISD::SELECT:             return lowerSELECT(Op, DAG);
+  case ISD::VSELECT:            return lowerVSELECT(Op, DAG);
   case ISD::BITCAST:            return lowerBITCAST(Op, DAG);
   }
 

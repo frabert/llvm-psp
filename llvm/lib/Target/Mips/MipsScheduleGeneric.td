@@ -1641,7 +1641,7 @@ def : InstRW<[GenericWriteAllegrex],
                  "T5551|T4444|SRT1|SRT2|SRT3|SRT4|DET|FHDP|F2H|FAD|MMUL|MOV|"
                  "MMOV|MONE|HTFM2|HTFM3|HTFM4|MSCL|H2F|I2C|I2UC|I2S|I2US|OCP|LGB|"
                  "QMUL|RNDF1|RNDF2|RNDI|RNDS|S2I|US2I|SAT0|SAT1|SBZ|SCL|SOCP|SBN|"
-                 "TFM2|TFM3|TFM4|IIM|FIM|CMP|F2IN|F2IZ|F2IU|F2ID|I2F|CMOVT|CMOVF|"
-                 "WB|WBN|ROT)"
+                 "TFM2|TFM3|TFM4|IIM|FIM|CMP|F2IN|F2IZ|F2IU|F2ID|I2F|CMOVSEL|"
+                 "CMOVT|CMOVF|WB|WBN|ROT)"
                  "_(S|P|T|Q)$")>;
 }

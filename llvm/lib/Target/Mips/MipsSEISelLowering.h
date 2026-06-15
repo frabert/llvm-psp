@@ -93,6 +93,9 @@ class TargetRegisterClass;
     /// depending on the indices in the shuffle.
     SDValue lowerVECTOR_SHUFFLE(SDValue Op, SelectionDAG &DAG) const;
     SDValue lowerSELECT(SDValue Op, SelectionDAG &DAG) const;
+    /// Lower a vector select whose mask is a VFPU float compare to vcmp +
+    /// per-lane vcmovt (Allegrex). Returns SDValue() to fall back otherwise.
+    SDValue lowerVSELECT(SDValue Op, SelectionDAG &DAG) const;
 
     MachineBasicBlock *emitBPOSGE32(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;

@@ -770,6 +770,30 @@ def : MipsInstAlias<"vcmov.q\t$rd, $rs, $cnd",
                     (VCMOVT_Q VFPUQOpnd:$rd, VFPUQOpnd:$rs, i8imm:$cnd), 0>,
                     INSN_ALLEGREX;
 
+// Codegen-only per-lane select: vcmovt.{s,p,t,q} with cnd=6, $rd tied to the
+// false value, reading the VFPUCC the preceding vcmp wrote (glued in). Selects
+// from MipsVfpuCMov (see lowerVSELECT).
+let Uses = [VFPUCC], isCodeGenOnly = 1, Constraints = "$fd = $rd",
+    Predicates = [HasAllegrex] in
+class VCMOVSEL_FMT<bits<2> sz, string suf, DAGOperand opnd, ValueType vt> :
+  InstSE<(outs opnd:$rd), (ins opnd:$fd, opnd:$rs),
+         "vcmovt"#suf#"\t$rd, $rs, 6",
+         [(set (vt opnd:$rd), (MipsVfpuCMov (vt opnd:$fd), (vt opnd:$rs)))],
+         II_ALLEGREX, FrmVFPU> {
+  bits<7> rd;
+  bits<7> rs;
+  let Inst{31-19} = 0b1101001010100;  // vcmovt base
+  let Inst{18-16} = 0b110;            // cnd = 6 (per-lane)
+  let Inst{15}    = sz{1};
+  let Inst{14-8}  = rs;
+  let Inst{7}     = sz{0};
+  let Inst{6-0}   = rd;
+}
+def VCMOVSEL_S : VCMOVSEL_FMT<0, ".s", VFPUSOpnd, f32>, INSN_ALLEGREX;
+def VCMOVSEL_P : VCMOVSEL_FMT<1, ".p", VFPUPOpnd, v2f32>, INSN_ALLEGREX;
+def VCMOVSEL_T : VCMOVSEL_FMT<2, ".t", VFPUTOpnd, v3f32>, INSN_ALLEGREX;
+def VCMOVSEL_Q : VCMOVSEL_FMT<3, ".q", VFPUQOpnd, v4f32>, INSN_ALLEGREX;
+
 def VWBN_S:
   InstSE<(outs VFPUSOpnd:$rd), (ins VFPUSOpnd:$rs, i8imm:$exp),
          "vwbn.s\t$rd, $rs, $exp", [], II_ALLEGREX, FrmVFPU>, INSN_ALLEGREX

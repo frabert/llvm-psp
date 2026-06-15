@@ -35,6 +35,15 @@ def SDT_MipsVfpuBrcond : SDTypeProfile<0, 3, [SDTCisVT<0, i32>, SDTCisVT<1, i32>
 def MipsVfpuBrcond : SDNode<"MipsISD::VfpuBrcond", SDT_MipsVfpuBrcond,
                             [SDNPHasChain, SDNPOptInGlue]>;
 
+// Per-lane conditional move driven by the VFPU condition codes a preceding
+// vcmp wrote (consumed via glue). VfpuCMov(falseval, trueval) selects, lane by
+// lane, trueval where the lane's VCC bit is set and falseval otherwise -- the
+// vcmovt.{s,p,t,q} cnd=6 form. Used to lower a vector select whose mask is a
+// VFPU float compare.
+def SDT_MipsVfpuCMov : SDTypeProfile<1, 2, [SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>,
+                                            SDTCisFP<0>]>;
+def MipsVfpuCMov : SDNode<"MipsISD::VfpuCMov", SDT_MipsVfpuCMov, [SDNPInGlue]>;
+
 def VFPUConstantAsmOpnd : AsmOperandClass {
   let Name = "VFPUConstant";
   let PredicateMethod = "isVFPUConstant";
