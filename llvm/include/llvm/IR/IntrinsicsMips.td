@@ -1974,21 +1974,25 @@ def int_mips_allegrex_vrot_q :
 // The result lives in the VFPU quad register file (VFPUQ holds both v4f32 and
 // v4i32), so it can be stored with sv.q or fed back into vi2f. The scale
 // (0..31) is an immediate.
-def int_mips_allegrex_vf2in_q : ClangBuiltin<"__builtin_allegrex_vf2in_q">,
-  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
-            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2iz_q : ClangBuiltin<"__builtin_allegrex_vf2iz_q">,
-  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
-            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2iu_q : ClangBuiltin<"__builtin_allegrex_vf2iu_q">,
-  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
-            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vf2id_q : ClangBuiltin<"__builtin_allegrex_vf2id_q">,
-  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
-            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vi2f_q : ClangBuiltin<"__builtin_allegrex_vi2f_q">,
-  Intrinsic<[llvm_v4f32_ty], [llvm_v4i32_ty, llvm_i32_ty],
-            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+// vf2i* : float vector -> int vector (.p/.t/.q), scale immarg.
+class VF2IIntr<string bn, LLVMType outv, LLVMType inv>
+  : ClangBuiltin<bn>,
+    Intrinsic<[outv], [inv, llvm_i32_ty], [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vf2in_p : VF2IIntr<"__builtin_allegrex_vf2in_p", llvm_v2i32_ty, llvm_v2f32_ty>;
+def int_mips_allegrex_vf2in_t : VF2IIntr<"__builtin_allegrex_vf2in_t", llvm_v3i32_ty, llvm_v3f32_ty>;
+def int_mips_allegrex_vf2in_q : VF2IIntr<"__builtin_allegrex_vf2in_q", llvm_v4i32_ty, llvm_v4f32_ty>;
+def int_mips_allegrex_vf2iz_p : VF2IIntr<"__builtin_allegrex_vf2iz_p", llvm_v2i32_ty, llvm_v2f32_ty>;
+def int_mips_allegrex_vf2iz_t : VF2IIntr<"__builtin_allegrex_vf2iz_t", llvm_v3i32_ty, llvm_v3f32_ty>;
+def int_mips_allegrex_vf2iz_q : VF2IIntr<"__builtin_allegrex_vf2iz_q", llvm_v4i32_ty, llvm_v4f32_ty>;
+def int_mips_allegrex_vf2iu_p : VF2IIntr<"__builtin_allegrex_vf2iu_p", llvm_v2i32_ty, llvm_v2f32_ty>;
+def int_mips_allegrex_vf2iu_t : VF2IIntr<"__builtin_allegrex_vf2iu_t", llvm_v3i32_ty, llvm_v3f32_ty>;
+def int_mips_allegrex_vf2iu_q : VF2IIntr<"__builtin_allegrex_vf2iu_q", llvm_v4i32_ty, llvm_v4f32_ty>;
+def int_mips_allegrex_vf2id_p : VF2IIntr<"__builtin_allegrex_vf2id_p", llvm_v2i32_ty, llvm_v2f32_ty>;
+def int_mips_allegrex_vf2id_t : VF2IIntr<"__builtin_allegrex_vf2id_t", llvm_v3i32_ty, llvm_v3f32_ty>;
+def int_mips_allegrex_vf2id_q : VF2IIntr<"__builtin_allegrex_vf2id_q", llvm_v4i32_ty, llvm_v4f32_ty>;
+def int_mips_allegrex_vi2f_p : VF2IIntr<"__builtin_allegrex_vi2f_p", llvm_v2f32_ty, llvm_v2i32_ty>;
+def int_mips_allegrex_vi2f_t : VF2IIntr<"__builtin_allegrex_vi2f_t", llvm_v3f32_ty, llvm_v3i32_ty>;
+def int_mips_allegrex_vi2f_q : VF2IIntr<"__builtin_allegrex_vi2f_q", llvm_v4f32_ty, llvm_v4i32_ty>;
 
 // Integer -> packed-byte color conversion (.q). vi2c/vi2uc take the high byte
 // of each of four i32 lanes (signed-saturated / unsigned-saturated) and pack

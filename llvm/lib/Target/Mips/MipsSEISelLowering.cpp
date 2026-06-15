@@ -241,20 +241,30 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
     // v4i32 path is unaffected (Allegrex has no MSA; everything is HasAllegrex-
     // guarded).
     addRegisterClass(MVT::v4i32, &Mips::VFPUQRegClass);
-    setOperationAction(ISD::BITCAST, MVT::v4i32, Legal);
+    addRegisterClass(MVT::v2i32, &Mips::VFPUPRegClass);
+    addRegisterClass(MVT::v3i32, &Mips::VFPUTRegClass);
     // Integer lanes move between the VFPU scalar slices and GPRs via mfv/mtv
     // (selected by the MipsPat lane patterns), so lane access is native: a
-    // converted v4i32 can have individual ints pulled out, or one assembled
+    // converted v*i32 can have individual ints pulled out, or one assembled
     // from ints and fed to vi2f. BUILD_VECTOR reuses the float insert-chain
-    // path below.
-    setOperationAction(ISD::EXTRACT_VECTOR_ELT, MVT::v4i32, Legal);
-    setOperationAction(ISD::INSERT_VECTOR_ELT, MVT::v4i32, Legal);
-    setOperationAction(ISD::SCALAR_TO_VECTOR, MVT::v4i32, Legal);
-    setOperationAction(ISD::BUILD_VECTOR, MVT::v4i32, Custom);
-    setOperationAction(ISD::VECTOR_SHUFFLE, MVT::v4i32, Expand);
-    setOperationAction(ISD::CONCAT_VECTORS, MVT::v4i32, Expand);
-    setOperationAction(ISD::EXTRACT_SUBVECTOR, MVT::v4i32, Expand);
-    setOperationAction(ISD::INSERT_SUBVECTOR, MVT::v4i32, Expand);
+    // path below. v4i32 has native lv.q/sv.q; v2i32/v3i32 (no native pair/triple
+    // memory op) are custom-scalarized into per-lane i32 loads/stores, exactly
+    // like v2f32/v3f32.
+    for (MVT VT : {MVT::v2i32, MVT::v3i32, MVT::v4i32}) {
+      setOperationAction(ISD::BITCAST, VT, Legal);
+      setOperationAction(ISD::EXTRACT_VECTOR_ELT, VT, Legal);
+      setOperationAction(ISD::INSERT_VECTOR_ELT, VT, Legal);
+      setOperationAction(ISD::SCALAR_TO_VECTOR, VT, Legal);
+      setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
+      setOperationAction(ISD::VECTOR_SHUFFLE, VT, Expand);
+      setOperationAction(ISD::CONCAT_VECTORS, VT, Expand);
+      setOperationAction(ISD::EXTRACT_SUBVECTOR, VT, Expand);
+      setOperationAction(ISD::INSERT_SUBVECTOR, VT, Expand);
+    }
+    for (MVT VT : {MVT::v2i32, MVT::v3i32}) {
+      setOperationAction(ISD::LOAD, VT, Custom);
+      setOperationAction(ISD::STORE, VT, Custom);
+    }
 
     // Aligned v4f32 load/store and elementwise arithmetic are wired up via
     // LV_Q/SV_Q and the VFPU_*_SPTQ patterns. Lane access is lowered natively
@@ -1422,7 +1432,8 @@ SDValue MipsSETargetLowering::lowerLOAD(SDValue Op, SelectionDAG &DAG) const {
   if (Subtarget.hasAllegrex() && MemVT == MVT::v16f32)
     return lowerAllegrexMatrixLoad(&Nd, DAG);
   if (Subtarget.hasAllegrex() && MemVT.isVector() &&
-      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32)) {
+      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32 ||
+       MemVT == MVT::v2i32 || MemVT == MVT::v3i32)) {
     auto [Lo, Hi] = scalarizeVectorLoad(&Nd, DAG);
     return DAG.getMergeValues({Lo, Hi}, SDLoc(Op));
   }
@@ -1478,7 +1489,8 @@ SDValue MipsSETargetLowering::lowerSTORE(SDValue Op, SelectionDAG &DAG) const {
   if (Subtarget.hasAllegrex() && MemVT == MVT::v16f32)
     return lowerAllegrexMatrixStore(&Nd, DAG);
   if (Subtarget.hasAllegrex() && MemVT.isVector() &&
-      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32))
+      (MemVT == MVT::v2f32 || MemVT == MVT::v3f32 ||
+       MemVT == MVT::v2i32 || MemVT == MVT::v3i32))
     return scalarizeVectorStore(&Nd, DAG);
 
   if (Nd.getMemoryVT() != MVT::f64 || !NoDPLoadStore)
@@ -2760,7 +2772,7 @@ SDValue MipsSETargetLowering::lowerBUILD_VECTOR(SDValue Op,
   // round-trip, and avoids recursing back through the legalizer.
   if (Subtarget.hasAllegrex() &&
       (ResTy == MVT::v2f32 || ResTy == MVT::v3f32 || ResTy == MVT::v4f32 ||
-       ResTy == MVT::v4i32)) {
+       ResTy == MVT::v2i32 || ResTy == MVT::v3i32 || ResTy == MVT::v4i32)) {
     SDValue Vec = DAG.getUNDEF(ResTy);
     for (unsigned i = 0, e = Node->getNumOperands(); i != e; ++i) {
       SDValue Elt = Node->getOperand(i);

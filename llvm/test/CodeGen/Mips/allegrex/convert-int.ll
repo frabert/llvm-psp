@@ -49,6 +49,40 @@ define void @cvt_f2id(ptr %src, ptr %dst) {
   ret void
 }
 
+; .p / .t widths: v2f32<->v2i32 and v3f32<->v3i32. These have no native
+; pair/triple memory op, so the int vectors are custom-scalarized per lane
+; (mtv/mfv), exactly like v2f32/v3f32.
+declare <2 x i32> @llvm.mips.allegrex.vf2in.p(<2 x float>, i32 immarg)
+declare <3 x i32> @llvm.mips.allegrex.vf2iz.t(<3 x float>, i32 immarg)
+declare <2 x float> @llvm.mips.allegrex.vi2f.p(<2 x i32>, i32 immarg)
+
+define void @cvt_f2in_p(ptr %src, ptr %dst) {
+; CHECK-LABEL: cvt_f2in_p:
+; CHECK: vf2in.p {{C[0-9]+}}, {{C[0-9]+}}, 4
+  %f = load <2 x float>, ptr %src, align 8
+  %i = call <2 x i32> @llvm.mips.allegrex.vf2in.p(<2 x float> %f, i32 4)
+  store <2 x i32> %i, ptr %dst, align 8
+  ret void
+}
+
+define void @cvt_f2iz_t(ptr %src, ptr %dst) {
+; CHECK-LABEL: cvt_f2iz_t:
+; CHECK: vf2iz.t {{C[0-9]+}}, {{C[0-9]+}}, 0
+  %f = load <3 x float>, ptr %src, align 16
+  %i = call <3 x i32> @llvm.mips.allegrex.vf2iz.t(<3 x float> %f, i32 0)
+  store <3 x i32> %i, ptr %dst, align 16
+  ret void
+}
+
+define void @cvt_i2f_p(ptr %src, ptr %dst) {
+; CHECK-LABEL: cvt_i2f_p:
+; CHECK: vi2f.p {{C[0-9]+}}, {{C[0-9]+}}, 1
+  %i = load <2 x i32>, ptr %src, align 8
+  %f = call <2 x float> @llvm.mips.allegrex.vi2f.p(<2 x i32> %i, i32 1)
+  store <2 x float> %f, ptr %dst, align 8
+  ret void
+}
+
 ; vf2iz then vi2f back to float, exercising v4i32 -> v4f32.
 define void @cvt_roundtrip(ptr %src, ptr %dst) {
 ; CHECK-LABEL: cvt_roundtrip:

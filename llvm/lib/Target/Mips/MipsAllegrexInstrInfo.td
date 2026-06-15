@@ -591,22 +591,41 @@ defm VI2F  : VFPU_BITCAST_SPTQ_FMT<"vi2f" , 0b11010010100>;
 
 let Predicates = [HasAllegrex] in {
 // v4i32 transport: native quad load/store (raw 128 bits) and a free bitcast to
-// v4f32 (same register file). Mirrors the v4f32 lv.q/sv.q patterns.
+// v4f32 (same register file). Mirrors the v4f32 lv.q/sv.q patterns. (v2i32/
+// v3i32 have no native pair/triple memory op and are custom-scalarized.)
 def : MipsPat<(v4i32 (alignedload addr:$addr)), (LV_Q addr:$addr)>;
 def : MipsPat<(alignedstore (v4i32 VFPUQOpnd:$rt), addr:$addr),
               (SV_Q VFPUQOpnd:$rt, addr:$addr, 1)>;
+// Free bitcast between the int and float view of each VFPU vector width.
 def : MipsPat<(v4i32 (bitconvert (v4f32 VFPUQOpnd:$v))), (v4i32 VFPUQOpnd:$v)>;
 def : MipsPat<(v4f32 (bitconvert (v4i32 VFPUQOpnd:$v))), (v4f32 VFPUQOpnd:$v)>;
+def : MipsPat<(v2i32 (bitconvert (v2f32 VFPUPOpnd:$v))), (v2i32 VFPUPOpnd:$v)>;
+def : MipsPat<(v2f32 (bitconvert (v2i32 VFPUPOpnd:$v))), (v2f32 VFPUPOpnd:$v)>;
+def : MipsPat<(v3i32 (bitconvert (v3f32 VFPUTOpnd:$v))), (v3i32 VFPUTOpnd:$v)>;
+def : MipsPat<(v3f32 (bitconvert (v3i32 VFPUTOpnd:$v))), (v3f32 VFPUTOpnd:$v)>;
 
-// Same-width float<->int conversions (.q) with a fractional-bit scale immediate.
-multiclass VFPUCvtIntrPat<Intrinsic Op, string Inst> {
-  def : MipsPat<(v4i32 (Op (v4f32 VFPUQOpnd:$rs), timm:$scale)),
+// Same-width float<->int conversions (.s/.p/.t/.q) with a fractional-bit scale
+// immediate. vf2i*: float vector -> int vector; vi2f: int vector -> float.
+multiclass VFPUCvtFI<Intrinsic OpP, Intrinsic OpT, Intrinsic OpQ, string Inst> {
+  def : MipsPat<(v2i32 (OpP (v2f32 VFPUPOpnd:$rs), timm:$scale)),
+                (!cast<Instruction>(Inst#"_P") VFPUPOpnd:$rs, timm:$scale)>;
+  def : MipsPat<(v3i32 (OpT (v3f32 VFPUTOpnd:$rs), timm:$scale)),
+                (!cast<Instruction>(Inst#"_T") VFPUTOpnd:$rs, timm:$scale)>;
+  def : MipsPat<(v4i32 (OpQ (v4f32 VFPUQOpnd:$rs), timm:$scale)),
                 (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs, timm:$scale)>;
 }
-defm : VFPUCvtIntrPat<int_mips_allegrex_vf2in_q, "VF2IN">;
-defm : VFPUCvtIntrPat<int_mips_allegrex_vf2iz_q, "VF2IZ">;
-defm : VFPUCvtIntrPat<int_mips_allegrex_vf2iu_q, "VF2IU">;
-defm : VFPUCvtIntrPat<int_mips_allegrex_vf2id_q, "VF2ID">;
+defm : VFPUCvtFI<int_mips_allegrex_vf2in_p, int_mips_allegrex_vf2in_t,
+                 int_mips_allegrex_vf2in_q, "VF2IN">;
+defm : VFPUCvtFI<int_mips_allegrex_vf2iz_p, int_mips_allegrex_vf2iz_t,
+                 int_mips_allegrex_vf2iz_q, "VF2IZ">;
+defm : VFPUCvtFI<int_mips_allegrex_vf2iu_p, int_mips_allegrex_vf2iu_t,
+                 int_mips_allegrex_vf2iu_q, "VF2IU">;
+defm : VFPUCvtFI<int_mips_allegrex_vf2id_p, int_mips_allegrex_vf2id_t,
+                 int_mips_allegrex_vf2id_q, "VF2ID">;
+def : MipsPat<(v2f32 (int_mips_allegrex_vi2f_p (v2i32 VFPUPOpnd:$rs), timm:$scale)),
+              (VI2F_P VFPUPOpnd:$rs, timm:$scale)>;
+def : MipsPat<(v3f32 (int_mips_allegrex_vi2f_t (v3i32 VFPUTOpnd:$rs), timm:$scale)),
+              (VI2F_T VFPUTOpnd:$rs, timm:$scale)>;
 def : MipsPat<(v4f32 (int_mips_allegrex_vi2f_q (v4i32 VFPUQOpnd:$rs), timm:$scale)),
               (VI2F_Q VFPUQOpnd:$rs, timm:$scale)>;
 } // Predicates = [HasAllegrex]
@@ -645,19 +664,25 @@ def MFV : MFV_FMT<0x48600000, (outs GPR32Opnd:$rt), (ins VFPUSOpnd:$rd),
 def MTV : MFV_FMT<0x48e00000, (outs VFPUSOpnd:$rd), (ins GPR32Opnd:$rt),
                   "mtv\t$rt, $rd", [/*(set VFPUSOpnd:$rd, GPR32Opnd:$rt)*/]>, INSN_ALLEGREX;
 
-// Integer (v4i32) lane access. A VFPU scalar slice holds raw 32 bits, so an
-// integer lane crosses to/from a GPR with mfv/mtv. EXTRACT pulls lane i out as
-// a GPR i32; INSERT/SCALAR_TO_VECTOR drop a GPR i32 into a slice. (Defined here,
-// after mfv/mtv; guarded by HasAllegrex like the f32 lane patterns above.)
+// Integer (v2i32/v3i32/v4i32) lane access. A VFPU scalar slice holds raw 32
+// bits, so an integer lane crosses to/from a GPR with mfv/mtv. EXTRACT pulls
+// lane i out as a GPR i32; INSERT/SCALAR_TO_VECTOR drop a GPR i32 into a slice.
+// (Defined here, after mfv/mtv; guarded by HasAllegrex like the f32 lane
+// patterns above.)
 let Predicates = [HasAllegrex] in {
-foreach i = [1, 2, 3, 4] in {
-  def : MipsPat<(i32 (vector_extract (v4i32 VFPUQOpnd:$v), (i32 !add(i, -1)))),
-                (MFV (f32 (EXTRACT_SUBREG VFPUQOpnd:$v, !cast<SubRegIndex>("sub_vfpus_"#i))))>;
-  def : MipsPat<(v4i32 (vector_insert (v4i32 VFPUQOpnd:$v), (i32 GPR32Opnd:$s), (i32 !add(i, -1)))),
-                (INSERT_SUBREG VFPUQOpnd:$v, (MTV GPR32Opnd:$s), !cast<SubRegIndex>("sub_vfpus_"#i))>;
+multiclass VFPUIntLanePat<ValueType vt, DAGOperand opnd, list<int> lanes> {
+  foreach i = lanes in {
+    def : MipsPat<(i32 (vector_extract (vt opnd:$v), (i32 !add(i, -1)))),
+                  (MFV (f32 (EXTRACT_SUBREG opnd:$v, !cast<SubRegIndex>("sub_vfpus_"#i))))>;
+    def : MipsPat<(vt (vector_insert (vt opnd:$v), (i32 GPR32Opnd:$s), (i32 !add(i, -1)))),
+                  (INSERT_SUBREG opnd:$v, (MTV GPR32Opnd:$s), !cast<SubRegIndex>("sub_vfpus_"#i))>;
+  }
+  def : MipsPat<(vt (scalar_to_vector (i32 GPR32Opnd:$s))),
+                (INSERT_SUBREG (vt (IMPLICIT_DEF)), (MTV GPR32Opnd:$s), sub_vfpus_1)>;
 }
-def : MipsPat<(v4i32 (scalar_to_vector (i32 GPR32Opnd:$s))),
-              (INSERT_SUBREG (v4i32 (IMPLICIT_DEF)), (MTV GPR32Opnd:$s), sub_vfpus_1)>;
+defm : VFPUIntLanePat<v2i32, VFPUPOpnd, [1, 2]>;
+defm : VFPUIntLanePat<v3i32, VFPUTOpnd, [1, 2, 3]>;
+defm : VFPUIntLanePat<v4i32, VFPUQOpnd, [1, 2, 3, 4]>;
 
 // Integer -> packed-byte color (vi2c/vi2uc, .q): v4i32 -> one packed word. The
 // op writes a VFPU scalar slice; mfv brings the packed i32 to a GPR.

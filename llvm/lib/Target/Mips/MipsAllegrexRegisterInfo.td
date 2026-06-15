@@ -2028,7 +2028,7 @@ def VFPUS : RegisterClass<"Mips", [f32], 64, (add
   S403, S413, S423, S433, S503, S513, S523, S533,
   S603, S613, S623, S633, S703, S713, S723, S733)>;
 
-def VFPUP : RegisterClass<"Mips", [v2f32], 64, (add
+def VFPUP : RegisterClass<"Mips", [v2f32, v2i32], 64, (add
   C000_P, C010_P, C020_P, C030_P, C100_P, C110_P, C120_P, C130_P,
   C200_P, C210_P, C220_P, C230_P, C300_P, C310_P, C320_P, C330_P,
   C400_P, C410_P, C420_P, C430_P, C500_P, C510_P, C520_P, C530_P,
@@ -2046,7 +2046,7 @@ def VFPUP : RegisterClass<"Mips", [v2f32], 64, (add
   R420_P, R421_P, R422_P, R423_P, R520_P, R521_P, R522_P, R523_P,
   R620_P, R621_P, R622_P, R623_P, R720_P, R721_P, R722_P, R723_P)>;
 
-def VFPUT : RegisterClass<"Mips", [v3f32], 64, (add
+def VFPUT : RegisterClass<"Mips", [v3f32, v3i32], 64, (add
   C000_T, C010_T, C020_T, C030_T, C100_T, C110_T, C120_T, C130_T,
   C200_T, C210_T, C220_T, C230_T, C300_T, C310_T, C320_T, C330_T,
   C400_T, C410_T, C420_T, C430_T, C500_T, C510_T, C520_T, C530_T,
