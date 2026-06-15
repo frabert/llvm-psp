@@ -628,6 +628,16 @@ def : MipsPat<(v3f32 (int_mips_allegrex_vi2f_t (v3i32 VFPUTOpnd:$rs), timm:$scal
               (VI2F_T VFPUTOpnd:$rs, timm:$scale)>;
 def : MipsPat<(v4f32 (int_mips_allegrex_vi2f_q (v4i32 VFPUQOpnd:$rs), timm:$scale)),
               (VI2F_Q VFPUQOpnd:$rs, timm:$scale)>;
+
+// Half pack/unpack (vf2h/vh2f): packed-half data is a float-typed VFPU value.
+def : MipsPat<(f32 (int_mips_allegrex_vf2h_p (v2f32 VFPUPOpnd:$rs))),
+              (VF2H_P VFPUPOpnd:$rs)>;
+def : MipsPat<(v2f32 (int_mips_allegrex_vf2h_q (v4f32 VFPUQOpnd:$rs))),
+              (VF2H_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v2f32 (int_mips_allegrex_vh2f_s (f32 VFPUSOpnd:$rs))),
+              (VH2F_S VFPUSOpnd:$rs)>;
+def : MipsPat<(v4f32 (int_mips_allegrex_vh2f_p (v2f32 VFPUPOpnd:$rs))),
+              (VH2F_P VFPUPOpnd:$rs)>;
 } // Predicates = [HasAllegrex]
 
 let shamt = 0b00000 in {

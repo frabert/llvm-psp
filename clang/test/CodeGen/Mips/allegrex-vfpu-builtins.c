@@ -67,3 +67,16 @@ int test_vi2c(v4i i) {
   // CHECK: call i32 @llvm.mips.allegrex.vi2c.q(<4 x i32> %{{.*}})
   return __builtin_allegrex_vi2c_q(i);
 }
+
+// Half pack/unpack.
+// CHECK-LABEL: define {{.*}}@test_vf2h(
+v2 test_vf2h(v4 f) {
+  // CHECK: call <2 x float> @llvm.mips.allegrex.vf2h.q(<4 x float> %{{.*}})
+  return __builtin_allegrex_vf2h_q(f);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vh2f(
+v4 test_vh2f(v2 h) {
+  // CHECK: call <4 x float> @llvm.mips.allegrex.vh2f.p(<2 x float> %{{.*}})
+  return __builtin_allegrex_vh2f_p(h);
+}

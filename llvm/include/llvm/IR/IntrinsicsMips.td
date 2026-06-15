@@ -2002,4 +2002,18 @@ def int_mips_allegrex_vi2c_q : ClangBuiltin<"__builtin_allegrex_vi2c_q">,
   Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
 def int_mips_allegrex_vi2uc_q : ClangBuiltin<"__builtin_allegrex_vi2uc_q">,
   Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
+
+// Half (f16) pack/unpack. vf2h narrows float lanes to packed half-pairs;
+// vh2f widens packed half-pairs back to floats. The packed-half data lives in
+// VFPU float registers (two halves per 32-bit lane), so it is modelled as the
+// float type of the right width (bits reinterpreted): vf2h.p v2f32->f32,
+// vf2h.q v4f32->v2f32; vh2f.s f32->v2f32, vh2f.p v2f32->v4f32.
+def int_mips_allegrex_vf2h_p : ClangBuiltin<"__builtin_allegrex_vf2h_p">,
+  Intrinsic<[llvm_float_ty], [llvm_v2f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vf2h_q : ClangBuiltin<"__builtin_allegrex_vf2h_q">,
+  Intrinsic<[llvm_v2f32_ty], [llvm_v4f32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vh2f_s : ClangBuiltin<"__builtin_allegrex_vh2f_s">,
+  Intrinsic<[llvm_v2f32_ty], [llvm_float_ty], [IntrNoMem]>;
+def int_mips_allegrex_vh2f_p : ClangBuiltin<"__builtin_allegrex_vh2f_p">,
+  Intrinsic<[llvm_v4f32_ty], [llvm_v2f32_ty], [IntrNoMem]>;
 }

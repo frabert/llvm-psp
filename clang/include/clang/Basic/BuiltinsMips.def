@@ -960,4 +960,10 @@ BUILTIN(__builtin_allegrex_vi2f_q, "V4fV4iIi", "nc")
 BUILTIN(__builtin_allegrex_vi2c_q, "iV4i", "nc")
 BUILTIN(__builtin_allegrex_vi2uc_q, "iV4i", "nc")
 
+// Half (f16) pack/unpack. Packed-half data is carried in float lanes.
+BUILTIN(__builtin_allegrex_vf2h_p, "fV2f", "nc")
+BUILTIN(__builtin_allegrex_vf2h_q, "V2fV4f", "nc")
+BUILTIN(__builtin_allegrex_vh2f_s, "V2ff", "nc")
+BUILTIN(__builtin_allegrex_vh2f_p, "V4fV2f", "nc")
+
 #undef BUILTIN
