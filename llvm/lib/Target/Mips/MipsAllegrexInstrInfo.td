@@ -700,6 +700,25 @@ def : MipsPat<(i32 (int_mips_allegrex_vi2c_q (v4i32 VFPUQOpnd:$rs))),
               (MFV (VI2C_Q VFPUQOpnd:$rs))>;
 def : MipsPat<(i32 (int_mips_allegrex_vi2uc_q (v4i32 VFPUQOpnd:$rs))),
               (MFV (VI2UC_Q VFPUQOpnd:$rs))>;
+
+// Integer <-> packed-short. The .p/.s forms whose single end is a packed word
+// cross that word through a GPR (mfv/mtv); the pair/quad ends stay in VFPU regs.
+def : MipsPat<(i32 (int_mips_allegrex_vi2s_p (v2i32 VFPUPOpnd:$rs))),
+              (MFV (VI2S_P VFPUPOpnd:$rs))>;
+def : MipsPat<(i32 (int_mips_allegrex_vi2us_p (v2i32 VFPUPOpnd:$rs))),
+              (MFV (VI2US_P VFPUPOpnd:$rs))>;
+def : MipsPat<(v2i32 (int_mips_allegrex_vi2s_q (v4i32 VFPUQOpnd:$rs))),
+              (VI2S_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v2i32 (int_mips_allegrex_vi2us_q (v4i32 VFPUQOpnd:$rs))),
+              (VI2US_Q VFPUQOpnd:$rs)>;
+def : MipsPat<(v2i32 (int_mips_allegrex_vs2i_s (i32 GPR32Opnd:$rs))),
+              (VS2I_S (MTV GPR32Opnd:$rs))>;
+def : MipsPat<(v2i32 (int_mips_allegrex_vus2i_s (i32 GPR32Opnd:$rs))),
+              (VUS2I_S (MTV GPR32Opnd:$rs))>;
+def : MipsPat<(v4i32 (int_mips_allegrex_vs2i_p (v2i32 VFPUPOpnd:$rs))),
+              (VS2I_P VFPUPOpnd:$rs)>;
+def : MipsPat<(v4i32 (int_mips_allegrex_vus2i_p (v2i32 VFPUPOpnd:$rs))),
+              (VUS2I_P VFPUPOpnd:$rs)>;
 } // Predicates = [HasAllegrex]
 
 def MFVC : MFVC_FMT<0x48600000, "mfvc",

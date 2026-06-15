@@ -2016,4 +2016,26 @@ def int_mips_allegrex_vh2f_s : ClangBuiltin<"__builtin_allegrex_vh2f_s">,
   Intrinsic<[llvm_v2f32_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_allegrex_vh2f_p : ClangBuiltin<"__builtin_allegrex_vh2f_p">,
   Intrinsic<[llvm_v4f32_ty], [llvm_v2f32_ty], [IntrNoMem]>;
+
+// Integer<->packed-short conversions. vi2s/vi2us narrow i32 lanes to packed
+// 16-bit shorts (signed / unsigned saturated); vs2i/vus2i widen packed shorts
+// back to i32 lanes (sign / zero extend). Packed data is plain integer:
+//   vi2s.p  v2i32 -> i32 (2 shorts in 1 word)   vi2s.q  v4i32 -> v2i32
+//   vs2i.s  i32 -> v2i32                         vs2i.p  v2i32 -> v4i32
+def int_mips_allegrex_vi2s_p : ClangBuiltin<"__builtin_allegrex_vi2s_p">,
+  Intrinsic<[llvm_i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vi2s_q : ClangBuiltin<"__builtin_allegrex_vi2s_q">,
+  Intrinsic<[llvm_v2i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vi2us_p : ClangBuiltin<"__builtin_allegrex_vi2us_p">,
+  Intrinsic<[llvm_i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vi2us_q : ClangBuiltin<"__builtin_allegrex_vi2us_q">,
+  Intrinsic<[llvm_v2i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vs2i_s : ClangBuiltin<"__builtin_allegrex_vs2i_s">,
+  Intrinsic<[llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vs2i_p : ClangBuiltin<"__builtin_allegrex_vs2i_p">,
+  Intrinsic<[llvm_v4i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vus2i_s : ClangBuiltin<"__builtin_allegrex_vus2i_s">,
+  Intrinsic<[llvm_v2i32_ty], [llvm_i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vus2i_p : ClangBuiltin<"__builtin_allegrex_vus2i_p">,
+  Intrinsic<[llvm_v4i32_ty], [llvm_v2i32_ty], [IntrNoMem]>;
 }

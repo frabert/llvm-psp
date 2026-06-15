@@ -966,4 +966,14 @@ BUILTIN(__builtin_allegrex_vf2h_q, "V2fV4f", "nc")
 BUILTIN(__builtin_allegrex_vh2f_s, "V2ff", "nc")
 BUILTIN(__builtin_allegrex_vh2f_p, "V4fV2f", "nc")
 
+// Integer <-> packed-short conversions.
+BUILTIN(__builtin_allegrex_vi2s_p, "iV2i", "nc")
+BUILTIN(__builtin_allegrex_vi2s_q, "V2iV4i", "nc")
+BUILTIN(__builtin_allegrex_vi2us_p, "iV2i", "nc")
+BUILTIN(__builtin_allegrex_vi2us_q, "V2iV4i", "nc")
+BUILTIN(__builtin_allegrex_vs2i_s, "V2ii", "nc")
+BUILTIN(__builtin_allegrex_vs2i_p, "V4iV2i", "nc")
+BUILTIN(__builtin_allegrex_vus2i_s, "V2ii", "nc")
+BUILTIN(__builtin_allegrex_vus2i_p, "V4iV2i", "nc")
+
 #undef BUILTIN
