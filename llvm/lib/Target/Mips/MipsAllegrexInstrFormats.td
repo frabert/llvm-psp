@@ -283,10 +283,10 @@ def VFPUConditionOpnd : Operand<i32> {
   let OperandType = "OPERAND_IMMEDIATE";
 }
 
-class VCMP_SPTQ_FMT<string name, bits<2> size, DAGOperand opnd>
+class VCMP_SPTQ_FMT<string name, bits<2> size, DAGOperand opnd, ValueType vt>
   : InstSE<(outs), (ins VFPUConditionOpnd:$cmp, opnd:$rs, opnd:$rt),
     !strconcat(name, "\t$cmp, $rs, $rt"),
-    [(MipsVfpuCmp opnd:$rs, opnd:$rt, timm:$cmp)], II_ALLEGREX, FrmI>
+    [(MipsVfpuCmp (vt opnd:$rs), (vt opnd:$rt), timm:$cmp)], II_ALLEGREX, FrmI>
 {
   // Writes the implicit VFPU condition codes; tied to its reader by glue.
   let Defs = [VFPUCC];

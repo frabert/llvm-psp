@@ -213,10 +213,10 @@ let shamt = 0b00000 in {
                II_ALLEGREX>, INSN_ALLEGREX;
 }
 
-def VCMP_S : VCMP_SPTQ_FMT<"vcmp.s", 0, VFPUSOpnd>, INSN_ALLEGREX;
-def VCMP_P : VCMP_SPTQ_FMT<"vcmp.p", 1, VFPUPOpnd>, INSN_ALLEGREX;
-def VCMP_T : VCMP_SPTQ_FMT<"vcmp.t", 2, VFPUTOpnd>, INSN_ALLEGREX;
-def VCMP_Q : VCMP_SPTQ_FMT<"vcmp.q", 3, VFPUQOpnd>, INSN_ALLEGREX;
+def VCMP_S : VCMP_SPTQ_FMT<"vcmp.s", 0, VFPUSOpnd, f32>, INSN_ALLEGREX;
+def VCMP_P : VCMP_SPTQ_FMT<"vcmp.p", 1, VFPUPOpnd, v2f32>, INSN_ALLEGREX;
+def VCMP_T : VCMP_SPTQ_FMT<"vcmp.t", 2, VFPUTOpnd, v3f32>, INSN_ALLEGREX;
+def VCMP_Q : VCMP_SPTQ_FMT<"vcmp.q", 3, VFPUQOpnd, v4f32>, INSN_ALLEGREX;
 
 // These short forms are parse-only conveniences (Emit=0): the reference
 // assembler only accepts the omitted-operand spelling for FL/TR, so printing
@@ -588,6 +588,28 @@ defm VF2IZ : VFPU_BITCAST_SPTQ_FMT<"vf2iz", 0b11010010001>;
 defm VF2IU : VFPU_BITCAST_SPTQ_FMT<"vf2iu", 0b11010010010>;
 defm VF2ID : VFPU_BITCAST_SPTQ_FMT<"vf2id", 0b11010010011>;
 defm VI2F  : VFPU_BITCAST_SPTQ_FMT<"vi2f" , 0b11010010100>;
+
+let Predicates = [HasAllegrex] in {
+// v4i32 transport: native quad load/store (raw 128 bits) and a free bitcast to
+// v4f32 (same register file). Mirrors the v4f32 lv.q/sv.q patterns.
+def : MipsPat<(v4i32 (alignedload addr:$addr)), (LV_Q addr:$addr)>;
+def : MipsPat<(alignedstore (v4i32 VFPUQOpnd:$rt), addr:$addr),
+              (SV_Q VFPUQOpnd:$rt, addr:$addr, 1)>;
+def : MipsPat<(v4i32 (bitconvert (v4f32 VFPUQOpnd:$v))), (v4i32 VFPUQOpnd:$v)>;
+def : MipsPat<(v4f32 (bitconvert (v4i32 VFPUQOpnd:$v))), (v4f32 VFPUQOpnd:$v)>;
+
+// Same-width float<->int conversions (.q) with a fractional-bit scale immediate.
+multiclass VFPUCvtIntrPat<Intrinsic Op, string Inst> {
+  def : MipsPat<(v4i32 (Op (v4f32 VFPUQOpnd:$rs), timm:$scale)),
+                (!cast<Instruction>(Inst#"_Q") VFPUQOpnd:$rs, timm:$scale)>;
+}
+defm : VFPUCvtIntrPat<int_mips_allegrex_vf2in_q, "VF2IN">;
+defm : VFPUCvtIntrPat<int_mips_allegrex_vf2iz_q, "VF2IZ">;
+defm : VFPUCvtIntrPat<int_mips_allegrex_vf2iu_q, "VF2IU">;
+defm : VFPUCvtIntrPat<int_mips_allegrex_vf2id_q, "VF2ID">;
+def : MipsPat<(v4f32 (int_mips_allegrex_vi2f_q (v4i32 VFPUQOpnd:$rs), timm:$scale)),
+              (VI2F_Q VFPUQOpnd:$rs, timm:$scale)>;
+} // Predicates = [HasAllegrex]
 
 let shamt = 0b00000 in {
   let rs = 0b00010 in {

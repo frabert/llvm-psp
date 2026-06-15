@@ -234,6 +234,15 @@ MipsSETargetLowering::MipsSETargetLowering(const MipsTargetMachine &TM,
     addRegisterClass(MVT::v3f32, &Mips::VFPUTRegClass);
     addRegisterClass(MVT::v4f32, &Mips::VFPUQRegClass);
 
+    // v4i32 shares the quad register file (VFPUQ) as a transport type for the
+    // float<->int conversions (vf2i*/vi2f). It loads/stores natively via
+    // lv.q/sv.q and bitcasts freely to v4f32; integer-vector arithmetic is not
+    // supported by the VFPU and is intentionally left unselectable. The MSA
+    // v4i32 path is unaffected (Allegrex has no MSA; everything is HasAllegrex-
+    // guarded).
+    addRegisterClass(MVT::v4i32, &Mips::VFPUQRegClass);
+    setOperationAction(ISD::BITCAST, MVT::v4i32, Legal);
+
     // Aligned v4f32 load/store and elementwise arithmetic are wired up via
     // LV_Q/SV_Q and the VFPU_*_SPTQ patterns. Lane access is lowered natively
     // through the VFPU scalar-slice subregisters (sub_vfpus_*): EXTRACT/INSERT/

@@ -2064,7 +2064,7 @@ def VFPUT : RegisterClass<"Mips", [v3f32], 64, (add
   R410_T, R411_T, R412_T, R413_T, R510_T, R511_T, R512_T, R513_T,
   R610_T, R611_T, R612_T, R613_T, R710_T, R711_T, R712_T, R713_T)>;
 
-def VFPUQ : RegisterClass<"Mips", [v4f32], 64, (add
+def VFPUQ : RegisterClass<"Mips", [v4f32, v4i32], 64, (add
   C000_Q, C010_Q, C020_Q, C030_Q, C100_Q, C110_Q, C120_Q, C130_Q,
   C200_Q, C210_Q, C220_Q, C230_Q, C300_Q, C310_Q, C320_Q, C330_Q,
   C400_Q, C410_Q, C420_Q, C430_Q, C500_Q, C510_Q, C520_Q, C530_Q,

@@ -1967,4 +1967,26 @@ def int_mips_allegrex_vrot_t :
 def int_mips_allegrex_vrot_q :
   Intrinsic<[llvm_v4f32_ty], [llvm_float_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+
+// Same-width float<->int conversions (.q). vf2i{n,z,u,d} convert v4f32 -> v4i32
+// with a fractional-bit scale immediate and a rounding mode (round-nearest /
+// truncate / ceil / floor); vi2f converts v4i32 -> v4f32 with the same scale.
+// The result lives in the VFPU quad register file (VFPUQ holds both v4f32 and
+// v4i32), so it can be stored with sv.q or fed back into vi2f. The scale
+// (0..31) is an immediate.
+def int_mips_allegrex_vf2in_q :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vf2iz_q :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vf2iu_q :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vf2id_q :
+  Intrinsic<[llvm_v4i32_ty], [llvm_v4f32_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+def int_mips_allegrex_vi2f_q :
+  Intrinsic<[llvm_v4f32_ty], [llvm_v4i32_ty, llvm_i32_ty],
+            [IntrNoMem, ImmArg<ArgIndex<1>>]>;
 }
