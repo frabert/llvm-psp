@@ -231,6 +231,13 @@ bool SemaMIPS::CheckMipsBuiltinArgument(unsigned BuiltinID, CallExpr *TheCall) {
   case Mips::BI__builtin_msa_st_d: i = 2; l = -4096; u = 4088; m = 8; break;
   case Mips::BI__builtin_msa_str_d: i = 2; l = -4096; u = 4088; m = 8; break;
   case Mips::BI__builtin_msa_str_w: i = 2; l = -2048; u = 2044; m = 4; break;
+  // Allegrex VFPU: vcmp condition (4-bit field) and vrot selector (5-bit field).
+  case Mips::BI__builtin_allegrex_vcmp_p:
+  case Mips::BI__builtin_allegrex_vcmp_t:
+  case Mips::BI__builtin_allegrex_vcmp_q: i = 0; l = 0; u = 15; break;
+  case Mips::BI__builtin_allegrex_vrot_p:
+  case Mips::BI__builtin_allegrex_vrot_t:
+  case Mips::BI__builtin_allegrex_vrot_q: i = 1; l = 0; u = 31; break;
   }
 
   if (!m)

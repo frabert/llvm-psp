@@ -1958,13 +1958,13 @@ def int_mips_allegrex_vsocp_s : ClangBuiltin<"__builtin_allegrex_vsocp_s">,
   Intrinsic<[llvm_v2f32_ty], [llvm_float_ty], [IntrNoMem]>;
 def int_mips_allegrex_vsocp_p : ClangBuiltin<"__builtin_allegrex_vsocp_p">,
   Intrinsic<[llvm_v4f32_ty], [llvm_v2f32_ty], [IntrNoMem]>;
-def int_mips_allegrex_vrot_p :
+def int_mips_allegrex_vrot_p : ClangBuiltin<"__builtin_allegrex_vrot_p">,
   Intrinsic<[llvm_v2f32_ty], [llvm_float_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vrot_t :
+def int_mips_allegrex_vrot_t : ClangBuiltin<"__builtin_allegrex_vrot_t">,
   Intrinsic<[llvm_v3f32_ty], [llvm_float_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
-def int_mips_allegrex_vrot_q :
+def int_mips_allegrex_vrot_q : ClangBuiltin<"__builtin_allegrex_vrot_q">,
   Intrinsic<[llvm_v4f32_ty], [llvm_float_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
 

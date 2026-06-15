@@ -80,3 +80,34 @@ v4 test_vh2f(v2 h) {
   // CHECK: call <4 x float> @llvm.mips.allegrex.vh2f.p(<2 x float> %{{.*}})
   return __builtin_allegrex_vh2f_p(h);
 }
+
+// Per-width C aliases for the width-overloaded intrinsics (EmitMipsBuiltinExpr).
+// CHECK-LABEL: define {{.*}}@test_vdot(
+float test_vdot(v4 a, v4 b) {
+  // CHECK: call float @llvm.mips.allegrex.vdot.v4f32(<4 x float> %{{.*}}, <4 x float> %{{.*}})
+  return __builtin_allegrex_vdot_q(a, b);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vsat0(
+v4 test_vsat0(v4 a) {
+  // CHECK: call <4 x float> @llvm.mips.allegrex.vsat0.v4f32(<4 x float> %{{.*}})
+  return __builtin_allegrex_vsat0_q(a);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vscl(
+v4 test_vscl(v4 a, float s) {
+  // CHECK: call <4 x float> @llvm.mips.allegrex.vscl.v4f32(<4 x float> %{{.*}}, float %{{.*}})
+  return __builtin_allegrex_vscl_q(a, s);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vcmp(
+int test_vcmp(v4 a, v4 b) {
+  // CHECK: call i32 @llvm.mips.allegrex.vcmp.v4f32(i32 2, <4 x float> %{{.*}}, <4 x float> %{{.*}})
+  return __builtin_allegrex_vcmp_q(2, a, b);
+}
+
+// CHECK-LABEL: define {{.*}}@test_vrot(
+v4 test_vrot(float a) {
+  // CHECK: call <4 x float> @llvm.mips.allegrex.vrot.q(float %{{.*}}, i32 3)
+  return __builtin_allegrex_vrot_q(a, 3);
+}
