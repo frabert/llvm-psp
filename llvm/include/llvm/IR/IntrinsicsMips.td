@@ -1989,4 +1989,13 @@ def int_mips_allegrex_vf2id_q :
 def int_mips_allegrex_vi2f_q :
   Intrinsic<[llvm_v4f32_ty], [llvm_v4i32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<1>>]>;
+
+// Integer -> packed-byte color conversion (.q). vi2c/vi2uc take the high byte
+// of each of four i32 lanes (signed-saturated / unsigned-saturated) and pack
+// them into a single 32-bit word (e.g. RGBA8888). The result is returned as an
+// i32 (it comes out in a VFPU scalar slice and crosses to a GPR via mfv).
+def int_mips_allegrex_vi2c_q :
+  Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
+def int_mips_allegrex_vi2uc_q :
+  Intrinsic<[llvm_i32_ty], [llvm_v4i32_ty], [IntrNoMem]>;
 }

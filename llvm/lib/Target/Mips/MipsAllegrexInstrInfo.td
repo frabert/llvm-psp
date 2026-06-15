@@ -658,6 +658,13 @@ foreach i = [1, 2, 3, 4] in {
 }
 def : MipsPat<(v4i32 (scalar_to_vector (i32 GPR32Opnd:$s))),
               (INSERT_SUBREG (v4i32 (IMPLICIT_DEF)), (MTV GPR32Opnd:$s), sub_vfpus_1)>;
+
+// Integer -> packed-byte color (vi2c/vi2uc, .q): v4i32 -> one packed word. The
+// op writes a VFPU scalar slice; mfv brings the packed i32 to a GPR.
+def : MipsPat<(i32 (int_mips_allegrex_vi2c_q (v4i32 VFPUQOpnd:$rs))),
+              (MFV (VI2C_Q VFPUQOpnd:$rs))>;
+def : MipsPat<(i32 (int_mips_allegrex_vi2uc_q (v4i32 VFPUQOpnd:$rs))),
+              (MFV (VI2UC_Q VFPUQOpnd:$rs))>;
 } // Predicates = [HasAllegrex]
 
 def MFVC : MFVC_FMT<0x48600000, "mfvc",
