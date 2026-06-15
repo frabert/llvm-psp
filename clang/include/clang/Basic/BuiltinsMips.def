@@ -932,6 +932,7 @@ BUILTIN(__builtin_allegrex_vmmov_q, "V16fV16f", "nc")
 BUILTIN(__builtin_allegrex_vmscl_q, "V16fV16ff", "nc")
 BUILTIN(__builtin_allegrex_vtfm4, "V4fV16fV4f", "nc")
 BUILTIN(__builtin_allegrex_vhtfm4, "V4fV16fV4f", "nc")
+BUILTIN(__builtin_allegrex_vmmul_q, "V16fV16fV16f", "nc")
 
 // VFPU scalar / width-changing helpers.
 BUILTIN(__builtin_allegrex_vsbn, "fff", "nc")

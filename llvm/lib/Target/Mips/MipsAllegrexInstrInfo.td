@@ -35,6 +35,10 @@ defm VHDP  : VFPU_A_SPTQ_FMT<0x66000000, "vhdp" , null_frag, 0, 1, 1, 1,
                              ScalarOperands>;
 defm VMSCL : VFPU_A_SPTQ_FMT<0xf2000000, "vmscl", null_frag, 0, 1, 1, 1,
                              MatrixOperands, MatrixOperands, ScalarOperands>;
+// vmmul reads rs in the transposed (M4I / E-view) matrix and, like the other
+// matrix-transform ops, forbids the destination from overlapping a source
+// (psp-as rejects the overlap as a "destination register conflict").
+let Constraints = "@earlyclobber $rd" in
 defm VMMUL : VFPU_A_SPTQ_FMT<0xf0000000, "vmmul", null_frag, 0, 1, 1, 1,
                              MatrixOperands, IMatrixOperands, MatrixOperands>;
 // The (homogeneous) matrix-transform ops read the source matrix column-by-column
@@ -540,6 +544,14 @@ def : MipsPat<(v4f32 (int_mips_allegrex_vtfm4 (v16f32 VFPUM4Opnd:$rs),
 def : MipsPat<(v4f32 (int_mips_allegrex_vhtfm4 (v16f32 VFPUM4Opnd:$rs),
                                                (v4f32 VFPUQOpnd:$rt))),
               (VHTFM4_Q VFPUQOpnd:$rt, VFPUM4Opnd:$rs)>;
+// vmmul reads its first source ($rs) through the transposed M4I (E-view) of the
+// same physical matrix register; COPY_TO_REGCLASS rebinds the value to that
+// view (the two views alias, so copyPhysReg makes the rebind a vmmov data copy
+// that the allocator coalesces away when it lands on the aliased register).
+def : MipsPat<(v16f32 (int_mips_allegrex_vmmul_q (v16f32 VFPUM4Opnd:$rs),
+                                                 (v16f32 VFPUM4Opnd:$rt))),
+              (VMMUL_Q (v16f32 (COPY_TO_REGCLASS VFPUM4Opnd:$rs, VFPUM4I)),
+                       VFPUM4Opnd:$rt)>;
 
 // ---- Odd-signature unary/auxiliary ops ----
 def : MipsPat<(f32 (int_mips_allegrex_vsbn (f32 VFPUSOpnd:$rs),

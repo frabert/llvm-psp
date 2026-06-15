@@ -243,9 +243,22 @@ void MipsSEInstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     Opc = Mips::VMOV_T;
   else if (Mips::VFPUQRegClass.contains(DestReg, SrcReg))
     Opc = Mips::VMOV_Q;
-  // VFPU matrix copies use vmmov of the matching shape.
-  else if (Mips::VFPUM4RegClass.contains(DestReg, SrcReg))
+  // VFPU matrix copies use vmmov of the matching shape. A copy that rebinds an
+  // M4 value to the transposed M4I view (for vmmul's $rs) is also a plain data
+  // move -- vmmov copies the scalars without transposing; only vmmul's read of
+  // the M4I view transposes -- so a transposed-read of the copy equals a
+  // transposed-read of the original regardless of which register it lands on.
+  else if (Mips::VFPUM4RegClass.contains(DestReg, SrcReg) ||
+           ((Mips::VFPUM4RegClass.contains(DestReg) ||
+             Mips::VFPUM4IRegClass.contains(DestReg)) &&
+            (Mips::VFPUM4RegClass.contains(SrcReg) ||
+             Mips::VFPUM4IRegClass.contains(SrcReg)))) {
+    // An M4<->M4I rebind that lands on the aliased register (same physical
+    // scalars, different view) is already in place -- emit nothing.
+    if (RI.regsOverlap(DestReg, SrcReg))
+      return;
     Opc = Mips::VMMOV_Q;
+  }
 
   // FCMP + FSEL for MIPSr6 may emit
   // $d0_64 = COPY killed renamable $f0

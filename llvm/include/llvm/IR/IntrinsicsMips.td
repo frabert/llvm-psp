@@ -1939,7 +1939,10 @@ def int_mips_allegrex_vtfm4 : ClangBuiltin<"__builtin_allegrex_vtfm4">,
   Intrinsic<[llvm_v4f32_ty], [llvm_v16f32_ty, llvm_v4f32_ty], [IntrNoMem]>;
 def int_mips_allegrex_vhtfm4 : ClangBuiltin<"__builtin_allegrex_vhtfm4">,
   Intrinsic<[llvm_v4f32_ty], [llvm_v16f32_ty, llvm_v4f32_ty], [IntrNoMem]>;
-def int_mips_allegrex_vmmul_q :
+// vmmul.q: matrix product. The first operand is read through the transposed
+// (M4I / E-view) of its register, so the raw result is arg0^T (*) arg1 -- see
+// the PSP VFPU reference for the exact convention.
+def int_mips_allegrex_vmmul_q : ClangBuiltin<"__builtin_allegrex_vmmul_q">,
   Intrinsic<[llvm_v16f32_ty], [llvm_v16f32_ty, llvm_v16f32_ty], [IntrNoMem]>;
 
 // Odd-signature VFPU ops that don't fit the same-width unary multiclass.
